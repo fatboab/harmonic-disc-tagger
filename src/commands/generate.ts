@@ -12,10 +12,11 @@ export interface GenerateOptions {
   albumFolder: string;
   verbose: boolean;
   force: boolean;
+  folderAsAlbum: boolean;
 }
 
 export async function runGenerate(options: GenerateOptions): Promise<TaggingFile> {
-  const { albumFolder, verbose, force } = options;
+  const { albumFolder, verbose, force, folderAsAlbum } = options;
   const folderName = path.basename(albumFolder);
 
   // ── Read stub ─────────────────────────────────────────────────────────────
@@ -58,7 +59,7 @@ export async function runGenerate(options: GenerateOptions): Promise<TaggingFile
 
   // ── Call Claude ───────────────────────────────────────────────────────────
   if (verbose) console.log(`  Calling Claude API...`);
-  const generated = await generateTagsWithClaude(release, coverArtUrl, folderName, structure);
+  const generated = await generateTagsWithClaude(release, coverArtUrl, folderName, structure, folderAsAlbum);
 
   if (coverArtUrl && !generated.coverArtUrl) {
     generated.coverArtUrl = coverArtUrl;

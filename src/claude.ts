@@ -127,6 +127,23 @@ When uncertain, put all in COMPOSER.
 • Multi-disc releases with named discs → discSubtitle on each disc in the
   discs array
 
+── GENRE and STYLE ─────────────────────────────────────────
+The Discogs API returns genres[] and styles[] as arrays, potentially with
+multiple values each. Map them to tags as follows:
+• GENRE: use the first (primary) genre as a single string value. If there is
+  only one genre, output a string. If there are genuinely multiple distinct
+  genres that both apply, output an array — but in practice Discogs usually
+  lists one primary genre so a single string is most common.
+• STYLE: output ALL style values from the styles[] array. If there is one
+  style, output a string. If there are two or more, output a JSON array
+  containing every value. Do NOT drop any style values.
+
+Example — Discogs returns genres: ["Electronic"] and styles: ["House", "Techno", "Downtempo"]:
+  GENRE: "Electronic"
+  STYLE: ["House", "Techno", "Downtempo"]
+
+Do not guess or infer styles beyond what Discogs provides.
+
 ── Series ──────────────────────────────────────────────────
 • Named numbered series → SERIES and SERIESNUMBER
 • Zero-pad SERIESNUMBER if series exceeds 9 volumes
@@ -174,8 +191,8 @@ OUTPUT FORMAT — return this exact JSON structure, nothing else:
     "ALBUMARTIST": "string",
     "ARTIST": "string",
     "DATE": "YYYY",
-    "GENRE": "string",
-    "STYLE": "string or array (optional)",
+    "GENRE": "string (use first/primary genre from genres[] array)",
+    "STYLE": "string if one style, array if multiple — include ALL values from styles[] array",
     "DISCTOTAL": "string (omit for single disc)",
     "TRACKTOTAL": "string (optional)",
     "CATALOGNUMBER": "string (optional)",
@@ -220,9 +237,10 @@ export async function generateTagsWithClaude(
   release: DiscogsRelease,
   coverArtUrl: string | null,
   albumFolderName: string,
-  structure: FolderStructure
+  structure: FolderStructure,
+  folderAsAlbum: boolean = false
 ): Promise<TaggingFile> {
-  const userMessage = buildUserMessage(release, coverArtUrl, albumFolderName, structure);
+  const userMessage = buildUserMessage(release, coverArtUrl, albumFolderName, structure, folderAsAlbum);
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-6',
@@ -257,11 +275,16 @@ function buildUserMessage(
   release: DiscogsRelease,
   coverArtUrl: string | null,
   albumFolderName: string,
-  structure: FolderStructure
+  structure: FolderStructure,
+  folderAsAlbum: boolean
 ): string {
+  const albumOverride = folderAsAlbum
+    ? `\nALBUM TITLE OVERRIDE: Use "${albumFolderName}" as the ALBUM tag value instead of the Discogs release title.`
+    : '';
+
   return `Please generate complete music tags for this release.
 
-ALBUM FOLDER (basename): ${albumFolderName}
+ALBUM FOLDER (basename): ${albumFolderName}${albumOverride}
 
 FOLDER AND FILE STRUCTURE:
 ${formatStructure(structure)}
