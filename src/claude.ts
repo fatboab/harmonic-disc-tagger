@@ -65,8 +65,28 @@ When uncertain, put all in COMPOSER.
 • Display tags (COMPOSER, CONDUCTOR, PERFORMER, ORCHESTRA, ENSEMBLE):
   Natural reading order — "Firstname Surname"
 
-• Sort tags (*SORT): "Surname, Firstname" — ONLY add when the sort value
-  differs from natural alphabetical position. Omit if redundant.
+• Sort tags (*SORT): "Surname, Firstname" — this is REQUIRED whenever the
+  display name consists of two or more words representing a personal name
+  (a forename + surname, with or without middle names/particles). This is
+  the vast majority of names you will encounter. Natural reading order
+  files alphabetically by the FIRST word, which is virtually never how a
+  person is looked up, so the sort tag is needed to correct this.
+
+  This applies even to simple two-word names with no particle or complication:
+    "Ólafur Arnalds"  → COMPOSERSORT: "Arnalds, Ólafur"    (REQUIRED, not optional)
+    "Nils Frahm"      → COMPOSERSORT: "Frahm, Nils"        (REQUIRED, not optional)
+    "David Oistrakh"  → PERFORMERSORT: "Oistrakh, David"   (REQUIRED, not optional)
+
+  Apply this identically and without exception to EVERY composer, conductor,
+  performer, and lyricist name that is not a single word. Do not treat some
+  names as needing it and others not — if it is "Firstname Surname" or more
+  complex, it needs a sort tag. There is no such thing as a two-word personal
+  name that "already sorts correctly" in natural order.
+
+• ONLY omit a sort tag when the display value is a single word (a mononym,
+  a one-word ensemble/band name, or similar) where there is nothing to
+  reorder. Examples that correctly have NO sort tag: "Laudibus" (ensemble),
+  "Sting" (mononym performer).
 
 • Particles (van, von, de, des): lowercase after forename in sort field:
     "Ludwig van Beethoven" → COMPOSERSORT: "Beethoven, Ludwig van"
@@ -86,6 +106,16 @@ When uncertain, put all in COMPOSER.
 
 • Instrument/voice descriptors: lowercase in parentheses:
     "David Oistrakh (violin)", "Renée Flynn (soprano)"
+
+• When ONE performer plays MULTIPLE instruments on the SAME track, combine
+  all instruments into a single comma-separated parenthetical — do NOT create
+  a separate PERFORMER entry per instrument for the same person:
+    CORRECT:   PERFORMER: "Ólafur Arnalds (piano, guitar, drums, organ, bass, melodica)"
+    INCORRECT: PERFORMER: ["Ólafur Arnalds (piano)", "Ólafur Arnalds (guitar)",
+                            "Ólafur Arnalds (drums)", ...]
+  The incorrect form causes the same person to appear as multiple separate
+  entries in the Performer browse index, which is confusing to navigate.
+  Apply this consistently on every track and every release.
 
 • Choral groups → ENSEMBLE, never PERFORMER
 
@@ -130,19 +160,20 @@ When uncertain, put all in COMPOSER.
 ── GENRE and STYLE ─────────────────────────────────────────
 The Discogs API returns genres[] and styles[] as arrays, potentially with
 multiple values each. Map them to tags as follows:
-• GENRE: use the first (primary) genre as a single string value. If there is
-  only one genre, output a string. If there are genuinely multiple distinct
-  genres that both apply, output an array — but in practice Discogs usually
-  lists one primary genre so a single string is most common.
+• GENRE: output ALL genre values from the genres[] array — the same rule as
+  STYLE below. If there is one genre, output a string. If there are two or
+  more, output a JSON array containing every value. Do NOT drop any genre
+  values and do NOT truncate to just the first/primary one.
 • STYLE: output ALL style values from the styles[] array. If there is one
   style, output a string. If there are two or more, output a JSON array
   containing every value. Do NOT drop any style values.
 
-Example — Discogs returns genres: ["Electronic"] and styles: ["House", "Techno", "Downtempo"]:
-  GENRE: "Electronic"
+Example — Discogs returns genres: ["Electronic", "Classical"] and
+styles: ["House", "Techno", "Downtempo"]:
+  GENRE: ["Electronic", "Classical"]
   STYLE: ["House", "Techno", "Downtempo"]
 
-Do not guess or infer styles beyond what Discogs provides.
+Do not guess or infer genres or styles beyond what Discogs provides.
 
 ── Series ──────────────────────────────────────────────────
 • Named numbered series → SERIES and SERIESNUMBER
@@ -191,7 +222,7 @@ OUTPUT FORMAT — return this exact JSON structure, nothing else:
     "ALBUMARTIST": "string",
     "ARTIST": "string",
     "DATE": "YYYY",
-    "GENRE": "string (use first/primary genre from genres[] array)",
+    "GENRE": "string if one genre, array if multiple — include ALL values from genres[] array",
     "STYLE": "string if one style, array if multiple — include ALL values from styles[] array",
     "DISCTOTAL": "string (omit for single disc)",
     "TRACKTOTAL": "string (optional)",

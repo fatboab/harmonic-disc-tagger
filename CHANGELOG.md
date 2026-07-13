@@ -7,6 +7,41 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.3.0] — Tagging consistency fixes and documentation update
+
+### Fixed
+- Sort tags (`COMPOSERSORT`, `CONDUCTORSORT`, `ORCHESTRASORT`, `ENSEMBLESORT`,
+  `PERFORMERSORT`, `LYRICISTSORT`) were being applied inconsistently — the
+  same style of two-word personal name (e.g. "Ólafur Arnalds") would
+  sometimes get a sort tag and sometimes not, across different releases.
+  The system prompt now states explicitly that any display name of two or
+  more words requires a sort tag, since natural reading order always files
+  alphabetically under the first word. Sort tags are only omitted for
+  genuine single-word names (mononyms, one-word ensemble names).
+- `PERFORMER` formatting was inconsistent when one person was credited on
+  multiple instruments on the same track — sometimes combined into one
+  entry (`"Name (piano, guitar)"`), sometimes split into a separate entry
+  per instrument (`"Name (piano)"`, `"Name (guitar)"`). Standardised on
+  combining all instruments for the same performer into a single
+  comma-separated parenthetical, avoiding the same person appearing
+  repeatedly in the Performer browse index.
+- `GENRE` was previously limited to the first/primary value from the
+  Discogs `genres[]` array. It is now treated the same way as `STYLE`:
+  all genre values are included, output as a YAML array when a release
+  has more than one credited genre.
+- README and CLI `--help` text were still describing the pre-2.0.0
+  `_discogsUrl` stub format and had not been updated for the switch to
+  `_discogsReleaseId`. Both now correctly document the Discogs Release ID
+  workflow, `DISCOGS_USER_TOKEN`, local cover art priority, `REMIXER`, and
+  `--folder-as-album`.
+
+### Changed
+- `AlbumTags.GENRE` type widened from `string` to `string | string[]` to
+  match `STYLE`, so metaflac tag application (already generic over arrays)
+  handles multi-valued genres without further code changes.
+
+---
+
 ## [2.2.0] — Genre/style fix and folder-as-album option
 
 ### Added

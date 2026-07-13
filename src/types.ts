@@ -33,7 +33,7 @@ export interface AlbumTags {
   ALBUMARTIST: string;
   ARTIST: string;
   DATE: string;
-  GENRE: string;
+  GENRE: string | string[];
   STYLE?: string | string[];
   DISCTOTAL?: string;
   TRACKTOTAL?: string;
