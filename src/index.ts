@@ -27,10 +27,14 @@ COMMANDS
             is kept on disk after completion so you can review or re-apply.
 
 OPTIONS
-  --force       (generate, tag) Re-generate tags even if already done.
-  --dry-run     (apply, tag)    Show what would be tagged; don't modify files.
-  --verbose     Print detailed per-track progress and tag values.
-  --help        Show this help.
+  --force           (generate, tag) Re-generate tags even if already done.
+  --dry-run         (apply, tag)    Show what would be tagged; don't modify files.
+  --folder-as-album (generate, tag) Use the album folder name as the ALBUM tag
+                    value instead of the Discogs release title. Useful when the
+                    folder name already reflects how you want the album to appear
+                    in your library (e.g. a compilation you've named yourself).
+  --verbose         Print detailed per-track progress and tag values.
+  --help            Show this help.
 
 WORKFLOW
   1. Rip a CD with abcde into a folder under <root-folder>.
@@ -78,6 +82,7 @@ interface CliArgs {
   rootFolder: string | null;
   force: boolean;
   dryRun: boolean;
+  folderAsAlbum: boolean;
   verbose: boolean;
   help: boolean;
 }
@@ -89,6 +94,7 @@ function parseArgs(argv: string[]): CliArgs {
     rootFolder: null,
     force: false,
     dryRun: false,
+    folderAsAlbum: false,
     verbose: false,
     help: false,
   };
@@ -98,6 +104,7 @@ function parseArgs(argv: string[]): CliArgs {
     if (a === 'generate' || a === 'apply' || a === 'tag') result.command = a;
     else if (a === '--force') result.force = true;
     else if (a === '--dry-run') result.dryRun = true;
+    else if (a === '--folder-as-album') result.folderAsAlbum = true;
     else if (a === '--verbose' || a === '-v') result.verbose = true;
     else if (a === '--help' || a === '-h') result.help = true;
     else if (!a.startsWith('-') && result.command && !result.rootFolder)
@@ -198,7 +205,7 @@ async function processAlbum(
     }
 
     process.stdout.write(`       generate: fetching Discogs + calling Claude...`);
-    const taggingFile = await runGenerate({ albumFolder, verbose, force });
+    const taggingFile = await runGenerate({ albumFolder, verbose, force, folderAsAlbum: args.folderAsAlbum });
     console.log(
       ` ✓\n` +
         `              Album:  ${taggingFile.album?.ALBUM ?? '?'}\n` +
