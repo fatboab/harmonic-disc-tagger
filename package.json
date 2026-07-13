@@ -1,0 +1,22 @@
+{
+  "name": "music-tagger",
+  "version": "3.0.0",
+  "description": "Automated music tagging tool using Discogs API and Claude AI",
+  "main": "dist/index.js",
+  "bin": {
+    "tagger": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.0",
+    "disconnect": "^1.2.2",
+    "yaml": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}
