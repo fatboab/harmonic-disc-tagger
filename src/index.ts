@@ -8,20 +8,21 @@ import { runApply, ApplyResult } from './commands/apply';
 // ─── Usage ────────────────────────────────────────────────────────────────────
 
 const USAGE = `
-🎵  music-tagger  —  Automated FLAC tagging via Discogs + Claude AI
+🎵  harmonic-disc-tagger  —  Automated FLAC tagging via Discogs + Claude AI
 
 USAGE
   tagger <command> <root-folder> [options]
 
 COMMANDS
   generate  Walk <root-folder> looking for .music-tags.yaml stub files.
-            For each one found, fetch the Discogs release page and call
-            Claude to generate a complete set of tags. The stub is replaced
-            with a fully-populated .music-tags.yaml.
+            For each one found, fetch the release from the Discogs API and
+            call Claude to generate a complete set of tags. The stub is
+            replaced with a fully-populated .music-tags.yaml.
 
   apply     Walk <root-folder> looking for complete .music-tags.yaml files.
             Apply the tags in each file to the FLAC files alongside it,
-            and embed cover art.
+            and embed cover art (local cover.jpg takes priority over the
+            Discogs image if both are available).
 
   tag       Run generate then apply in a single pass. The .music-tags.yaml
             is kept on disk after completion so you can review or re-apply.
@@ -38,15 +39,18 @@ OPTIONS
 
 WORKFLOW
   1. Rip a CD with abcde into a folder under <root-folder>.
-  2. Create a .music-tags.yaml stub in the ripped folder containing:
+  2. Find the release on discogs.com and note its release ID — the number
+     in the URL, e.g. discogs.com/release/6670784-... → 6670784
+  3. Create a .music-tags.yaml stub in the ripped folder containing:
 
-       _discogsUrl: 'https://www.discogs.com/release/...'
+       _discogsReleaseId: 6670784
 
-  3. Run:  tagger tag <root-folder>
+  4. Run:  tagger tag <root-folder>
 
-     The tool walks the tree, finds your stub, fetches Discogs, generates
-     tags with Claude, applies them with metaflac, and embeds cover art.
-     The completed .music-tags.yaml is kept for review or future re-apply.
+     The tool walks the tree, finds your stub, fetches the release from the
+     Discogs API, generates tags with Claude, applies them with metaflac,
+     and embeds cover art. The completed .music-tags.yaml is kept for
+     review or future re-apply.
 
 FOLDER STRUCTURE
   The tool expects one of these layouts inside each album folder:
@@ -71,8 +75,13 @@ FOLDER STRUCTURE
       My Album (Disc 2)/
         01 - Track One.flac
 
+  An optional cover.jpg (or .jpeg/.png/.gif/.bmp/.webp) in the album folder,
+  or in an individual disc folder, is used in preference to Discogs cover art.
+
 ENVIRONMENT
-  ANTHROPIC_API_KEY   Required for the generate and tag commands.
+  ANTHROPIC_API_KEY    Required for the generate and tag commands.
+  DISCOGS_USER_TOKEN   Recommended for the generate and tag commands — without
+                       it, cover art from Discogs is limited to 150px thumbnails.
 `;
 
 // ─── Arg parsing ──────────────────────────────────────────────────────────────
@@ -148,7 +157,7 @@ async function main(): Promise<void> {
 
   if (albumFolders.length === 0) {
     console.log('  No .music-tags.yaml files found — nothing to do.');
-    console.log('  Create a stub with:  echo "_discogsUrl: \'<url>\'" > <album-folder>/.music-tags.yaml');
+    console.log('  Create a stub with:  echo "_discogsReleaseId: <id>" > <album-folder>/.music-tags.yaml');
     process.exit(0);
   }
 
