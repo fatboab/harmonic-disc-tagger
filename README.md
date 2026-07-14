@@ -263,6 +263,36 @@ Example (a performer credited on multiple instruments on the same track — comb
           - 'Gunnarsson, Sigurdur Bjarki'
 ```
 
+Example (a compilation with "feat." credits — ARTIST always holds the primary artist only; the featured artist goes into `PERFORMER` if their role is identifiable, or a `TITLE` suffix otherwise):
+
+```yaml
+album:
+  ALBUM: Erased Tapes 17
+  ALBUMARTIST: Various
+  ARTIST: Various
+discs:
+  - discNumber: 1
+    folder: .
+    tracks:
+      - TITLE: Mouth to Mouth (feat. Rival Consoles)
+        TRACKNUMBER: '02'
+        ARTIST: Douglas Dare
+      - TITLE: Our Mother's Lights
+        TRACKNUMBER: '09'
+        ARTIST: Masayoshi Fujita
+        PERFORMER: Moor Mother (vocals)
+      - TITLE: Graffiti Octaves
+        TRACKNUMBER: '13'
+        ARTIST: Hans-Joachim Roedelius & Tim Story
+```
+
+Three different cases side by side:
+- **Track 2** — Rival Consoles is an electronic production act; their specific contribution isn't clearly identifiable, so the credit falls back to a `(feat. ...)` suffix on `TITLE`, and no `PERFORMER` entry is added.
+- **Track 9** — Moor Mother is known as a vocalist, so her role is clear: she becomes a `PERFORMER` entry with `(vocals)`, and `TITLE` stays clean with no suffix.
+- **Track 13** — a genuine duo credited with "&" (equal billing, no "feat."/"ft."/"featuring" wording) stays as a single `ARTIST` value and isn't affected by any of this — it's not a featuring credit at all.
+
+A featured orchestra or ensemble (as opposed to an individual performer) always keeps the `TITLE` suffix approach, since orchestras/ensembles already have their own dedicated `ORCHESTRA`/`ENSEMBLE` tags rather than `PERFORMER`.
+
 **Edit this file freely** before running `apply`. Add, correct, or remove any tags. Then re-run `apply` to apply your changes — it is fully idempotent (clears all existing tags and rewrites from scratch each time).
 
 ---

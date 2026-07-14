@@ -7,6 +7,61 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.5.0] — Featuring credits: PERFORMER vs TITLE refinement
+
+### Changed
+- Refines the v2.4.0 featuring-artist behaviour. Rather than always moving
+  a "feat."/"ft."/"featuring" credit into a `TITLE` suffix, the featured
+  artist's contribution is now assessed individually:
+  - If their role is reasonably identifiable (e.g. known as a vocalist or
+    rapper, or explicitly credited with a role such as "Vocals" in the
+    Discogs data), they are added as a `PERFORMER` entry with the role in
+    parentheses (e.g. `PERFORMER: "Moor Mother (vocals)"`), and `TITLE` is
+    left unchanged with no suffix.
+  - If their role cannot be confidently determined (e.g. another producer
+    or act whose specific contribution is unclear), the credit falls back
+    to the v2.4.0 behaviour: `(feat. Artist Name)` appended to `TITLE`,
+    with no `PERFORMER` entry created.
+  - Multiple featured artists on one track may be split across both
+    mechanisms independently, judged case by case.
+- `ARTIST` continues to always hold the primary artist only, regardless of
+  which mechanism the featured artist ends up in.
+- Featured orchestras/ensembles are unaffected by this refinement and
+  continue to always use the `TITLE` suffix approach, since they already
+  have dedicated `ORCHESTRA`/`ENSEMBLE` tags separate from `PERFORMER`.
+- Genuine duo/collaboration credits (joined with "&", no featuring wording)
+  remain unaffected, as in v2.4.0.
+- README and the standalone Music Tagging Guide updated with a three-way
+  worked example (unclear-role fallback, identifiable-role PERFORMER case,
+  and the genuine-duo exception) using tracks from the same release.
+
+---
+
+## [2.4.0] — Featuring-artist handling
+
+### Changed
+- Tracks credited as "Artist A feat. Artist B" (or "ft.", "featuring", "with")
+  no longer put the combined string into `ARTIST`. The primary artist alone
+  now goes in `ARTIST`, with the featured artist(s) appended to `TITLE` in
+  parentheses, e.g. `TITLE: "Mouth to Mouth (feat. Rival Consoles)"`,
+  `ARTIST: "Douglas Dare"`. Previously the whole "Artist A feat. Artist B"
+  string was placed in `ARTIST` unchanged, which cluttered the Artist browse
+  index with compound entries that don't match how either artist would
+  actually be looked up.
+- Genuine duo/collaboration credits (equal billing, joined with "&", no
+  "feat."/"ft."/"featuring" wording) are explicitly exempted from this rule
+  and continue to be tagged as a single `ARTIST` value, e.g.
+  `ARTIST: "Hans-Joachim Roedelius & Tim Story"`.
+- The same splitting rule extends to tracks featuring a credited orchestra
+  or ensemble (e.g. "Penguin Café feat. The City of Prague Philharmonic
+  Orchestra") — `ARTIST` holds the primary act, the featured
+  orchestra/ensemble is appended to `TITLE`, and `ORCHESTRA`/`ENSEMBLE` is
+  still populated separately as normal.
+- README and the standalone Music Tagging Guide updated with examples of
+  this convention, including the duo/collaboration exception.
+
+---
+
 ## [2.3.0] — Tagging consistency fixes and documentation update
 
 ### Fixed

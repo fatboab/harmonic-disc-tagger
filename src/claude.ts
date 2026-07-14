@@ -151,7 +151,61 @@ When uncertain, put all in COMPOSER.
 
 ── Compilation track ARTIST ────────────────────────────────
 • For compilations (Various artists): set per-track ARTIST to the track's
-  credited artist. The album-level ARTIST stays "Various".
+  primary credited artist. The album-level ARTIST stays "Various".
+
+── Featuring / "feat." credits ─────────────────────────────
+When a track is credited as "Artist A feat. Artist B" (or "ft.", "featuring",
+"with", or similar), ARTIST always holds the primary artist ONLY — never the
+combined string. What happens to the featured artist depends on whether their
+specific contribution/role can be reasonably determined:
+
+• IF you can reasonably identify what the featured artist actually did on the
+  track (e.g. they are known as a vocalist/rapper/singer, or the Discogs
+  extraartists data gives an explicit role like "Vocals", "Rap", "Violin"):
+    Add them as a PERFORMER entry with their role in parentheses, following
+    the standard PERFORMER conventions (multi-valued if more than one, sort
+    tags per the usual rules). Do NOT also append "(feat. ...)" to TITLE —
+    the PERFORMER tag is sufficient and TITLE stays clean.
+    Example: "Our Mother's Lights" by Masayoshi Fujita feat. Moor Mother,
+    where Moor Mother is known as a vocalist/poet:
+      ARTIST: "Masayoshi Fujita"
+      PERFORMER: "Moor Mother (vocals)"
+      PERFORMERSORT: "Moor Mother" (only if it would sort differently — a
+        stage name/mononym like this usually needs no sort tag)
+      TITLE: "Our Mother's Lights"  ← unchanged, no "(feat. ...)" suffix
+
+• IF the featured artist's specific role is NOT confidently determinable
+  (e.g. they are another producer, band, or electronic act whose exact
+  contribution to this particular track is ambiguous — you don't know if
+  they produced, performed, wrote, or something else):
+    Fall back to appending "(feat. Artist Name)" to TITLE instead, and do
+    NOT create a PERFORMER entry for them.
+    Example: "Mouth to Mouth" by Douglas Dare feat. Rival Consoles (an
+    electronic production act — role unclear):
+      ARTIST: "Douglas Dare"
+      TITLE: "Mouth to Mouth (feat. Rival Consoles)"
+      (no PERFORMER entry added for Rival Consoles)
+
+• Do not guess a role you are not reasonably confident about. When genuinely
+  uncertain, prefer the TITLE suffix fallback over inventing a PERFORMER role.
+
+• Multiple featured artists can be split across both mechanisms if
+  appropriate — e.g. one featured artist with a clear vocal role goes in
+  PERFORMER while another with an unclear role goes in a "(feat. ...)"
+  TITLE suffix. Judge each featured credit independently.
+
+• Genuine duo/collaboration credits (equal billing, joined with "&", no
+  "feat."/"ft."/"featuring" wording) are NOT affected by any of this — they
+  stay as a single ARTIST value, e.g. "Hans-Joachim Roedelius & Tim Story".
+
+• Featured ORCHESTRA/ENSEMBLE credits (as opposed to featured individual
+  performers) keep the TITLE suffix approach regardless, since orchestras/
+  ensembles are already captured in their own dedicated ORCHESTRA/ENSEMBLE
+  tags rather than PERFORMER: e.g. "Perpetuum Mobile" by Penguin Café feat.
+  The City of Prague Philharmonic Orchestra becomes
+    ARTIST: "Penguin Café"
+    TITLE: "Perpetuum Mobile (feat. The City of Prague Philharmonic Orchestra)"
+    ORCHESTRA: "The City of Prague Philharmonic Orchestra"
 
 ── DISCSUBTITLE ────────────────────────────────────────────
 • Multi-disc releases with named discs → discSubtitle on each disc in the
