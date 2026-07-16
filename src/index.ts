@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as path from 'path';
 import * as process from 'process';
-import { findAlbumFolders, isTaggingFileComplete } from './filesystem';
+import { findAlbumFolders, isTaggingFileComplete, readTaggingFile } from './filesystem';
 import { runGenerate } from './commands/generate';
 import { runApply, ApplyResult } from './commands/apply';
 
@@ -167,6 +167,7 @@ async function main(): Promise<void> {
   let successCount = 0;
   let skipCount = 0;
   let errorCount = 0;
+  let warningCount = 0;
 
   for (let i = 0; i < albumFolders.length; i++) {
     const albumFolder = albumFolders[i];
@@ -176,7 +177,8 @@ async function main(): Promise<void> {
     console.log(`${prefix} ${relPath}`);
 
     try {
-      await processAlbum(albumFolder, args, relPath);
+      const warnings = await processAlbum(albumFolder, args, relPath);
+      warningCount += warnings;
       successCount++;
     } catch (err) {
       console.error(`       ❌  ${String(err)}`);
@@ -192,6 +194,9 @@ async function main(): Promise<void> {
   // ── Summary ───────────────────────────────────────────────────────────────
   console.log('─'.repeat(60));
   console.log(`✅  Done: ${successCount} succeeded, ${skipCount} skipped, ${errorCount} failed`);
+  if (warningCount > 0) {
+    console.log(`⚠️   ${warningCount} warning(s) flagged — check the messages above and the .music-tags.yaml files`);
+  }
   if (errorCount > 0) process.exit(1);
 }
 
@@ -201,7 +206,7 @@ async function processAlbum(
   albumFolder: string,
   args: CliArgs,
   relPath: string
-): Promise<void> {
+): Promise<number> {
   const { command, force, dryRun, verbose } = args;
 
   // ── generate ──────────────────────────────────────────────────────────────
@@ -210,7 +215,7 @@ async function processAlbum(
 
     if (alreadyDone && !force) {
       console.log(`       ↩  Tags already generated — skipping (--force to redo)`);
-      return;
+      return 0;
     }
 
     process.stdout.write(`       generate: fetching Discogs + calling Claude...`);
@@ -220,6 +225,7 @@ async function processAlbum(
         `              Album:  ${taggingFile.album?.ALBUM ?? '?'}\n` +
         `              Artist: ${taggingFile.album?.ALBUMARTIST ?? '?'}`
     );
+    const warningCount = printWarnings(taggingFile._warnings);
 
     // For 'tag' command, continue straight to apply
     if (command === 'tag') {
@@ -233,21 +239,41 @@ async function processAlbum(
       reportApplyResult(result, albumFolder, dryRun);
     }
 
-    return;
+    return warningCount;
   }
 
   // ── apply only ────────────────────────────────────────────────────────────
   if (command === 'apply') {
     if (!isTaggingFileComplete(albumFolder)) {
       console.log(`       ⚠  Tags not yet generated — run 'generate' first`);
-      return;
+      return 0;
     }
+
+    const existing = readTaggingFile(albumFolder);
+    const warningCount = printWarnings(existing._warnings);
 
     console.log(`       apply:${dryRun ? ' [DRY RUN]' : ''}`);
     const result = await runApply({ albumFolder, verbose, dryRun });
     reportApplyResult(result, albumFolder, dryRun);
-    return;
+    return warningCount;
   }
+
+  return 0;
+}
+
+/**
+ * Prints any data-quality warnings flagged by Claude during tag generation.
+ * Returns the number of warnings printed, for tallying in the run summary.
+ */
+function printWarnings(warnings: string[] | undefined): number {
+  if (!warnings || warnings.length === 0) return 0;
+
+  console.log(`       ⚠  ${warnings.length} warning(s) flagged for this album:`);
+  for (const warning of warnings) {
+    console.log(`          - ${warning}`);
+  }
+
+  return warnings.length;
 }
 
 function reportApplyResult(

@@ -65,6 +65,13 @@ export interface TaggingFile {
   _generated?: string;
   _albumFolder?: string;
 
+  // Data-quality flags surfaced by Claude during generation — e.g. a
+  // mismatch between Discogs tracklist order and the actual audio files,
+  // an assumption made when a role/credit was ambiguous, etc. Persisted in
+  // the YAML so they remain visible on review, and printed to the console
+  // immediately after generate/apply.
+  _warnings?: string[];
+
   album?: AlbumTags;
   discs?: DiscData[];
   coverArtUrl?: string;
