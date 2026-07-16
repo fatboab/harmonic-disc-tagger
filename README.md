@@ -345,6 +345,33 @@ Trigger a MinimServer rescan so it picks up the new tags:
 
 ---
 
+## Data-quality warnings
+
+Sometimes the Discogs data doesn't quite match the physical disc — for example the tracklist order on Discogs disagreeing with the actual ripped files, or a credit that's ambiguous. When Claude spots this kind of issue during `generate`, it's flagged rather than silently guessed or left to cause a hard failure:
+
+```
+[1/1] Stranger On The Shore
+       generate: fetching Discogs + calling Claude... ✓
+              Album:  Stranger On The Shore
+              Artist: Mr. Acker Bilk
+       ⚠  1 warning(s) flagged for this album:
+          - Track order mismatch: Discogs lists position 07 as "Never My
+            Love" and 14 as "Morning Has Broken", but the ripped files have
+            these swapped. Used file order; please verify against the
+            physical disc.
+```
+
+Warnings are:
+- Printed to the console immediately after `generate` (and again on `apply`, in case you're applying a previously-generated file)
+- Persisted in the `_warnings` field of `.music-tags.yaml`, so they remain visible on review even after the terminal output has scrolled away
+- Counted in the final run summary (`⚠ N warning(s) flagged`) so a batch run across many albums doesn't let one quietly slip past
+
+A warning does **not** stop the album being tagged — `generate` still writes a complete `.music-tags.yaml`, using its best judgement (e.g. trusting the actual audio filenames over a mismatched Discogs position). The warning is there so you know to double-check that specific album, not a failure state.
+
+If you ever see a warning saying reasoning text had to be stripped from Claude's response, the tags were still recovered successfully, but it's worth reviewing that album a little more carefully than usual.
+
+---
+
 ## Notes
 
 - Tags are applied **destructively** — all existing Vorbis comments are cleared and replaced. Use `--dry-run` to preview before committing.

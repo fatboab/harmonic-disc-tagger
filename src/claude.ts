@@ -24,7 +24,40 @@ The role field on extraartists is freeform. Common values include:
 "Arranged By", "Lyrics By", "Music By", "Vocals", "Piano", "Violin", etc.
 
 Your task is to interpret this data and produce a complete JSON tagging specification.
-Return ONLY valid JSON — no markdown fences, no explanation, no preamble.
+
+═══════════════════════════════════════════════════════════════
+OUTPUT DISCIPLINE — READ THIS CAREFULLY
+═══════════════════════════════════════════════════════════════
+Your entire response MUST be a single JSON object and NOTHING else. Do not
+write any analysis, reasoning, explanation, or commentary before, after, or
+around the JSON — not even a single sentence. Do not think out loud in your
+response. This applies even when the data is confusing, contradictory, or
+requires careful work to resolve (e.g. mismatched track ordering, ambiguous
+credits, conflicting titles). Do all of that reasoning silently; the JSON
+object is the ONLY thing that should appear in your reply.
+
+If you encounter a genuine data-quality issue that the user should know
+about — for example, the Discogs tracklist order does not match the actual
+audio filenames, a credit is ambiguous, or you had to make a judgement call
+a human should double-check — do NOT explain this in prose outside the JSON.
+Instead, record it as a short string in the "_warnings" array within the
+JSON output itself (see OUTPUT FORMAT below). This is the ONLY mechanism
+for surfacing uncertainty or discrepancies — never free text outside the
+JSON structure.
+
+Example of the exact situation to watch for: Discogs lists position 07 as
+"Never My Love" but the ripped file at track 7 is clearly titled/named
+"Morning Has Broken", with position 14 showing the reverse. In this case:
+  - Trust the actual audio filenames for TITLE and TRACKNUMBER assignment,
+    since they reflect the physical disc the user actually has.
+  - Still use Discogs data (composer, lyricist, etc.) matched to the
+    correct title, not the Discogs position number.
+  - Add an entry to "_warnings" describing the discrepancy concisely, e.g.:
+    "Track order mismatch: Discogs lists position 07 as 'Never My Love' and
+    14 as 'Morning Has Broken', but the ripped files have these swapped.
+    Used file order; please verify against the physical disc."
+  - Resolve this silently and output only the final JSON — do not narrate
+    the analysis in your response.
 
 ═══════════════════════════════════════════════════════════════
 TAGGING CONVENTIONS
@@ -270,6 +303,7 @@ OUTPUT FORMAT — return this exact JSON structure, nothing else:
   "_discogsReleaseId": number,
   "_generated": "ISO 8601 timestamp",
   "_albumFolder": "album folder basename",
+  "_warnings": ["array of strings (optional) — data-quality issues, mismatches, or judgement calls the user should review. Omit entirely or leave empty if none."],
   "coverArtUrl": "string or null",
   "album": {
     "ALBUM": "string",
@@ -345,12 +379,49 @@ export async function generateTagsWithClaude(
     .replace(/\s*```$/m, '')
     .trim();
 
+  // First attempt: parse as-is (the expected, well-behaved case)
   try {
     return JSON.parse(raw) as TaggingFile;
-  } catch (err) {
-    throw new Error(
-      `Claude returned invalid JSON.\nParse error: ${String(err)}\n\nRaw response:\n${raw}`
+  } catch (firstErr) {
+    // Fallback: the model may have included reasoning/analysis text before
+    // or after the JSON object despite instructions not to. Attempt to
+    // recover by extracting the outermost {...} block and parsing that.
+    const firstBrace = raw.indexOf('{');
+    const lastBrace = raw.lastIndexOf('}');
+
+    if (firstBrace === -1 || lastBrace <= firstBrace) {
+      throw new Error(
+        `Claude returned invalid JSON (no JSON object could be located).\n` +
+          `Parse error: ${String(firstErr)}\n\nRaw response:\n${raw}`
+      );
+    }
+
+    const extracted = raw.slice(firstBrace, lastBrace + 1);
+
+    let recovered: TaggingFile;
+    try {
+      recovered = JSON.parse(extracted) as TaggingFile;
+    } catch (secondErr) {
+      throw new Error(
+        `Claude returned invalid JSON, and fallback extraction also failed.\n` +
+          `First parse error: ${String(firstErr)}\n` +
+          `Fallback parse error: ${String(secondErr)}\n\n` +
+          `Raw response:\n${raw}`
+      );
+    }
+
+    // Recovery succeeded, but flag it — the model violated the "JSON only"
+    // instruction, so the output deserves an extra close look even though
+    // we managed to salvage it.
+    recovered._warnings = recovered._warnings ?? [];
+    recovered._warnings.unshift(
+      'Claude included reasoning/analysis text outside the JSON response; ' +
+        'it was automatically stripped to recover the tags. Review this ' +
+        'album\'s tags carefully, as the underlying data may have needed ' +
+        'unusual judgement calls.'
     );
+
+    return recovered;
   }
 }
 

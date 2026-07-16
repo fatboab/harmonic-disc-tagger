@@ -7,6 +7,44 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.6.0] — Data-quality warnings and JSON parsing resilience
+
+### Added
+- `_warnings` field on `.music-tags.yaml`. When Claude identifies a
+  data-quality issue during `generate` — most commonly a mismatch between
+  the Discogs tracklist order and the actual ripped audio filenames, but
+  also ambiguous credits or other judgement calls — it is now recorded as
+  a string in a `_warnings` array rather than left unflagged or expressed
+  as free-form reasoning text that broke JSON parsing.
+- Warnings are printed to the console immediately after `generate` (and
+  again after `apply`, in case a previously-generated file is being applied
+  later), and persisted in `.music-tags.yaml` so they remain visible on
+  review long after the terminal output has scrolled past.
+- The final run summary now includes a warning count (`⚠ N warning(s)
+  flagged`) alongside the succeeded/skipped/failed counts, so a warning on
+  one album in a large batch run doesn't go unnoticed.
+- A warning does not stop an album being tagged — `generate` still writes
+  a complete `.music-tags.yaml` using its best judgement (e.g. trusting
+  actual audio filenames over a mismatched Discogs position number), with
+  the warning flagging that the album deserves a closer look.
+
+### Fixed
+- Root cause of a failure mode where Claude, faced with a genuinely
+  confusing case (Discogs tracklist order not matching the physical rip),
+  responded with prose analysis before the JSON object, causing the whole
+  album to fail with a JSON parse error and 0 tags being written. The
+  system prompt now explicitly forbids any text outside the JSON object
+  under all circumstances, with a concrete worked example matching this
+  exact failure mode, and directs this kind of finding into `_warnings`
+  instead of prose.
+- `generateTagsWithClaude` JSON parsing is now defensive as a second line
+  of protection: if the model still includes stray text around the JSON
+  object despite the instruction, the outermost `{...}` block is extracted
+  and parsed as a fallback, with an automatic warning appended noting that
+  recovery was needed, rather than failing the whole album outright.
+
+---
+
 ## [2.5.0] — Featuring credits: PERFORMER vs TITLE refinement
 
 ### Changed
