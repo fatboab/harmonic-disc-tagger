@@ -7,6 +7,39 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.7.0] — Artist name consistency: prefer canonical Discogs name
+
+### Changed
+- Tags now default to the canonical `name` field from a Discogs artist
+  credit rather than the `anv` (Artist Name Variation) field. Previously
+  `anv` was preferred, on the reasoning that it reflects "how the artist
+  was credited on this specific release" — but this caused the same artist
+  to be tagged inconsistently across a collection whenever different
+  releases credited them slightly differently (e.g. "Mr. Acker Bilk" on
+  one CD's Discogs entry vs the canonical "Acker Bilk" used everywhere
+  else). `name` matches the artist's main Discogs profile page and is
+  the stable identity to tag against, keeping one artist as one entry in
+  the Artist browse index across the whole collection.
+- A narrow exception remains for cases where `anv` reflects a genuinely
+  distinct professional identity (e.g. a deliberate pen name used for a
+  specific body of work) rather than an incidental release-specific
+  spelling — `name` remains the default in all other cases.
+
+### Added
+- `--parent-folder-as-artist` flag for `generate` and `tag`. Uses the name
+  of the album folder's parent directory as the album-level `ALBUMARTIST`/
+  `ARTIST`, overriding even the canonical Discogs name. Intended for cases
+  where the user's own folder structure (e.g. `Acker Bilk/Stranger On The
+  Shore/`) already reflects their preferred artist name regardless of how
+  Discogs credits that particular release. Only applies to genuine
+  single-artist releases — has no effect on `ALBUMARTIST: Various`
+  compilations, and does not touch per-track `ARTIST` overrides on
+  compilation tracks.
+- README updated with a new "Artist name consistency" section explaining
+  the `name`/`anv` distinction and when to reach for the new flag.
+
+---
+
 ## [2.6.0] — Data-quality warnings and JSON parsing resilience
 
 ### Added

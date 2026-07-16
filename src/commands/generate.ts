@@ -13,11 +13,13 @@ export interface GenerateOptions {
   verbose: boolean;
   force: boolean;
   folderAsAlbum: boolean;
+  parentFolderAsArtist: boolean;
 }
 
 export async function runGenerate(options: GenerateOptions): Promise<TaggingFile> {
-  const { albumFolder, verbose, force, folderAsAlbum } = options;
+  const { albumFolder, verbose, force, folderAsAlbum, parentFolderAsArtist } = options;
   const folderName = path.basename(albumFolder);
+  const parentFolderName = path.basename(path.dirname(albumFolder));
 
   // ── Read stub ─────────────────────────────────────────────────────────────
   const stub = readTaggingFile(albumFolder);
@@ -59,7 +61,15 @@ export async function runGenerate(options: GenerateOptions): Promise<TaggingFile
 
   // ── Call Claude ───────────────────────────────────────────────────────────
   if (verbose) console.log(`  Calling Claude API...`);
-  const generated = await generateTagsWithClaude(release, coverArtUrl, folderName, structure, folderAsAlbum);
+  const generated = await generateTagsWithClaude(
+    release,
+    coverArtUrl,
+    folderName,
+    structure,
+    folderAsAlbum,
+    parentFolderAsArtist,
+    parentFolderName
+  );
 
   if (coverArtUrl && !generated.coverArtUrl) {
     generated.coverArtUrl = coverArtUrl;

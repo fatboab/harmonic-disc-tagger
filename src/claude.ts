@@ -91,9 +91,23 @@ some wrote music and others wrote words, split them into COMPOSER and LYRICIST.
 When uncertain, put all in COMPOSER.
 
 ── Names ────────────────────────────────────────────────────
-• Use the ANV (Artist Name Variation) from the Discogs data if present and
-  non-empty, as that is the name as credited on the actual release.
-  Otherwise use the artist name field.
+• Prefer the canonical "name" field from the Discogs artist credit over the
+  "anv" (Artist Name Variation) field, by default. The "name" field matches
+  the artist's main Discogs profile page and is the stable identity for that
+  person; "anv" is often just a spelling/style variation as printed on one
+  specific release (e.g. "Mr. Acker Bilk" as credited on one CD, vs the
+  canonical "Acker Bilk" used everywhere else in his catalogue).
+  This matters because the same artist should be tagged identically across
+  every release in the user's collection — if one CD used "anv" and another
+  used "name", the same person would be split into two separate entries in
+  the Artist browse index. Using "name" consistently avoids this.
+• Exception: if "anv" reflects a genuinely different professional/artistic
+  identity rather than a minor spelling variation (e.g. a pen name used
+  consistently for a specific body of work, distinct from other work under
+  their main name), prefer "anv" for that specific context — this is rare
+  and should only be applied when you have good reason to believe it's a
+  deliberate distinct identity rather than an incidental release credit.
+  When in doubt, default to "name".
 
 • Display tags (COMPOSER, CONDUCTOR, PERFORMER, ORCHESTRA, ENSEMBLE):
   Natural reading order — "Firstname Surname"
@@ -357,9 +371,19 @@ export async function generateTagsWithClaude(
   coverArtUrl: string | null,
   albumFolderName: string,
   structure: FolderStructure,
-  folderAsAlbum: boolean = false
+  folderAsAlbum: boolean = false,
+  parentFolderAsArtist: boolean = false,
+  parentFolderName: string | null = null
 ): Promise<TaggingFile> {
-  const userMessage = buildUserMessage(release, coverArtUrl, albumFolderName, structure, folderAsAlbum);
+  const userMessage = buildUserMessage(
+    release,
+    coverArtUrl,
+    albumFolderName,
+    structure,
+    folderAsAlbum,
+    parentFolderAsArtist,
+    parentFolderName
+  );
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-6',
@@ -432,15 +456,28 @@ function buildUserMessage(
   coverArtUrl: string | null,
   albumFolderName: string,
   structure: FolderStructure,
-  folderAsAlbum: boolean
+  folderAsAlbum: boolean,
+  parentFolderAsArtist: boolean,
+  parentFolderName: string | null
 ): string {
   const albumOverride = folderAsAlbum
     ? `\nALBUM TITLE OVERRIDE: Use "${albumFolderName}" as the ALBUM tag value instead of the Discogs release title.`
     : '';
 
+  const artistOverride =
+    parentFolderAsArtist && parentFolderName
+      ? `\nARTIST OVERRIDE: Use "${parentFolderName}" as the ALBUMARTIST and ARTIST tag ` +
+        `value (album level) instead of whatever name Discogs credits, INCLUDING instead ` +
+        `of the canonical Discogs artist name. Apply this only if the release is a ` +
+        `genuine single-artist release — do NOT apply it to override "Various" on a ` +
+        `multi-artist compilation, and do NOT apply it to per-track ARTIST overrides on ` +
+        `compilation tracks; it only affects the album-level ALBUMARTIST/ARTIST fields.`
+      : '';
+
   return `Please generate complete music tags for this release.
 
 ALBUM FOLDER (basename): ${albumFolderName}${albumOverride}
+PARENT FOLDER (basename): ${parentFolderName ?? 'not available'}${artistOverride}
 
 FOLDER AND FILE STRUCTURE:
 ${formatStructure(structure)}

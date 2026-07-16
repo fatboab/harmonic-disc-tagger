@@ -98,9 +98,10 @@ Walk the tree, find stub `.music-tags.yaml` files, and populate them with tags f
 
 ```bash
 tagger generate /mnt/nas/Music
-tagger generate /mnt/nas/Music --force             # Re-generate even if already done
-tagger generate /mnt/nas/Music --folder-as-album   # Use the album folder name as ALBUM instead of the Discogs title
-tagger generate /mnt/nas/Music --verbose           # Show detailed progress
+tagger generate /mnt/nas/Music --force                     # Re-generate even if already done
+tagger generate /mnt/nas/Music --folder-as-album           # Use the album folder name as ALBUM instead of the Discogs title
+tagger generate /mnt/nas/Music --parent-folder-as-artist   # Use the parent folder name as ALBUMARTIST/ARTIST
+tagger generate /mnt/nas/Music --verbose                   # Show detailed progress
 ```
 
 ### `apply`
@@ -122,6 +123,7 @@ tagger tag /mnt/nas/Music
 tagger tag /mnt/nas/Music --dry-run             # Generate only, show apply preview
 tagger tag /mnt/nas/Music --force               # Re-generate even for already-tagged albums
 tagger tag /mnt/nas/Music --folder-as-album
+tagger tag /mnt/nas/Music --parent-folder-as-artist
 tagger tag /mnt/nas/Music --verbose
 ```
 
@@ -134,6 +136,7 @@ tagger tag /mnt/nas/Music --verbose
 | `--force` | `generate`, `tag` | Re-generate tags even if `.music-tags.yaml` is already complete |
 | `--dry-run` | `apply`, `tag` | Show what would be tagged; don't modify any files |
 | `--folder-as-album` | `generate`, `tag` | Use the album folder name as `ALBUM` instead of the Discogs release title |
+| `--parent-folder-as-artist` | `generate`, `tag` | Use the album folder's parent directory name as `ALBUMARTIST`/`ARTIST`, instead of whatever Discogs credits (including instead of the canonical Discogs artist name). Only affects genuine single-artist releases — has no effect on "Various" compilations or per-track `ARTIST` overrides |
 | `--verbose` / `-v` | all | Print detailed per-track progress and tag values |
 | `--help` / `-h` | — | Show usage |
 
@@ -294,6 +297,30 @@ Three different cases side by side:
 A featured orchestra or ensemble (as opposed to an individual performer) always keeps the `TITLE` suffix approach, since orchestras/ensembles already have their own dedicated `ORCHESTRA`/`ENSEMBLE` tags rather than `PERFORMER`.
 
 **Edit this file freely** before running `apply`. Add, correct, or remove any tags. Then re-run `apply` to apply your changes — it is fully idempotent (clears all existing tags and rewrites from scratch each time).
+
+---
+
+## Artist name consistency
+
+Discogs credits often differ from release to release for the same artist — a spelling variation, an honorific, a slightly different style ("Mr. Acker Bilk" on one CD, "Acker Bilk" on another). Discogs itself tracks this via two separate fields on every artist credit:
+
+- `name` — the canonical name matching that artist's main Discogs profile page
+- `anv` (Artist Name Variation) — how they happen to be credited on this one specific release
+
+By default, tags use the canonical `name` rather than `anv`, specifically so the same artist stays consistent across your whole collection rather than fragmenting into several different spellings depending on which CD happened to credit them differently. This matches the naming conventions established for composers and performers elsewhere in this document (use the commonly-known name, not an incidental variation).
+
+If even the canonical Discogs name isn't what you want — for example, your own folder structure already reflects the name you prefer — use `--parent-folder-as-artist`:
+
+```bash
+# Folder layout:
+#   Acker Bilk/
+#     Stranger On The Shore/
+#       .music-tags.yaml
+
+tagger tag "/mnt/nas/Music/Acker Bilk" --parent-folder-as-artist
+```
+
+This sets `ALBUMARTIST` and `ARTIST` (album level) to `Acker Bilk` — the name of the album folder's parent directory — regardless of what Discogs credits on that specific release. It only applies to genuine single-artist releases: it has no effect on `ALBUMARTIST: Various` compilations, and doesn't touch per-track `ARTIST` overrides on compilation tracks.
 
 ---
 
