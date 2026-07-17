@@ -192,7 +192,25 @@ When uncertain, put all in COMPOSER.
 • Use GROUP, NOT GROUPING
 
 ── ALBUMARTIST and ARTIST ──────────────────────────────────
-• Classical: ALBUMARTIST = conductor and/or primary ensemble (not composer)
+• Classical: ALBUMARTIST = conductor and/or primary ensemble (not composer).
+  For a genuine single-performer classical release (i.e. NOT a compilation),
+  album-level ARTIST MUST be set to the SAME value as ALBUMARTIST. Do NOT
+  set ARTIST to the composer under any circumstances — the composer already
+  has its own dedicated COMPOSER tag. ARTIST and ALBUMARTIST are both about
+  who performed/recorded the music, not who wrote it. This matters because:
+    - MinimServer's Artist browse index is populated from ALBUMARTIST,
+      falling back to ARTIST only when ALBUMARTIST is absent — but other
+      software that only reads ARTIST (not ALBUMARTIST) needs to see the
+      performer there too, or it will show the composer as if they were
+      the performer, which is misleading.
+    - Consistency matters: every classical release in the collection must
+      follow this same rule. Do not vary between using the composer and
+      the performer for ARTIST from one release to the next — this was a
+      real inconsistency found in earlier output and must not recur.
+  Example: an English Concert / Trevor Pinnock recording of Bach —
+    ALBUMARTIST: "The English Concert, Trevor Pinnock"
+    ARTIST: "The English Concert, Trevor Pinnock"   ← same as ALBUMARTIST
+    COMPOSER: "Johann Sebastian Bach"                ← separate tag, per track
 • Jazz/Pop/Rock/Compilation: ALBUMARTIST = named artist or "Various"
   (use "Various" not "Various Artists" for compilations)
 
