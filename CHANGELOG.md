@@ -7,6 +7,25 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.8.0] — Classical ARTIST tag consistency fix
+
+### Fixed
+- Album-level `ARTIST` on classical (non-compilation) releases was being
+  set inconsistently — sometimes to the composer (e.g. "Johann Sebastian
+  Bach"), sometimes mirroring `ALBUMARTIST` (the conductor/ensemble, e.g.
+  "The English Concert, Trevor Pinnock"), varying unpredictably between
+  releases with otherwise identical performers and composer. Root cause:
+  the system prompt defined `ALBUMARTIST` for classical explicitly, but
+  never once stated what album-level `ARTIST` should be, leaving Claude to
+  improvise a different answer each time. The system prompt now explicitly
+  states that `ARTIST` must mirror `ALBUMARTIST` for genuine single-performer
+  classical releases, and must never be set to the composer — the composer
+  already has its own dedicated `COMPOSER` tag. This closes a gap between
+  the code's actual behaviour and the rule already documented (but never
+  wired into the prompt) in the standalone Music Tagging Guide.
+
+---
+
 ## [2.7.0] — Artist name consistency: prefer canonical Discogs name
 
 ### Changed
