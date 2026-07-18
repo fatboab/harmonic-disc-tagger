@@ -7,6 +7,27 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.9.0] — Warning text precision fix (disc/file misattribution)
+
+### Fixed
+- On multi-disc releases, a `_warnings` entry could incorrectly state which
+  disc folder a referenced file actually belongs to — e.g. describing a
+  file that physically lives in `Disk 1/` as being in `Disk 2/`. The
+  underlying tags were unaffected (track-to-title matching was correct);
+  the error was confined to the descriptive warning text itself, most
+  likely arising when the model cross-referenced multiple discs' track
+  numbers (which repeat across discs, e.g. every disc has its own track
+  "02") while composing the warning summary.
+- The system prompt now includes an explicit precision requirement: before
+  writing any warning that references a specific file, disc, or track, the
+  model must re-check the FOLDER AND FILE STRUCTURE listing and quote the
+  disc folder name exactly as given there, rather than inferring or
+  recalling it from memory. A wrong disc reference in a warning defeats
+  the purpose of flagging it in the first place, so this is treated as a
+  data-quality error in its own right.
+
+---
+
 ## [2.8.0] — Classical ARTIST tag consistency fix
 
 ### Fixed
