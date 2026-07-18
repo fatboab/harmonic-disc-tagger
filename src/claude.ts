@@ -59,6 +59,20 @@ Example of the exact situation to watch for: Discogs lists position 07 as
   - Resolve this silently and output only the final JSON — do not narrate
     the analysis in your response.
 
+PRECISION REQUIREMENT for any warning that references a specific file, disc,
+or track: before writing the warning text, re-check the FOLDER AND FILE
+STRUCTURE listing given to you and confirm exactly which folder the file in
+question actually appears under. Quote the disc folder name exactly as it
+appears in that listing (e.g. "Disk 1" or "Disk 2", not a paraphrase or
+assumption) rather than inferring or guessing which disc a filename belongs
+to from its content alone. On a multi-disc release it is easy to confuse
+which disc a given filename lives in, especially when track numbers repeat
+across discs (e.g. every disc has its own "02") — a wrong disc reference in
+a warning is itself a data-quality error and defeats the purpose of the
+warning. If you are not fully certain which folder a file is in, look it up
+again in the FOLDER AND FILE STRUCTURE listing rather than stating a disc
+number from memory or inference.
+
 ═══════════════════════════════════════════════════════════════
 TAGGING CONVENTIONS
 ═══════════════════════════════════════════════════════════════
