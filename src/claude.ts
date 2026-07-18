@@ -168,6 +168,19 @@ When uncertain, put all in COMPOSER.
 • Instrument/voice descriptors: lowercase in parentheses:
     "David Oistrakh (violin)", "Renée Flynn (soprano)"
 
+• PERFORMERSORT must contain ONLY the reordered name — NEVER the instrument/
+  voice parenthetical. The instrument is display-only decoration for
+  PERFORMER; the sort tag exists purely to control alphabetical filing by
+  surname and has nothing to do with what instrument someone played.
+    PERFORMER:     "Chris Barber (trombone, vocals)"
+    PERFORMERSORT: "Barber, Chris"                    ← CORRECT (no instrument)
+    PERFORMERSORT: "Barber, Chris (trombone, vocals)" ← WRONG — never do this
+  This applies even when PERFORMER is multi-valued with different instruments
+  per person — strip the parenthetical from every PERFORMERSORT entry, no
+  exceptions. Double-check every generated PERFORMERSORT value specifically
+  for this before finalising the output, since it is easy to carry the
+  parenthetical over by mistake when transforming a whole array of names.
+
 • When ONE performer plays MULTIPLE instruments on the SAME track, combine
   all instruments into a single comma-separated parenthetical — do NOT create
   a separate PERFORMER entry per instrument for the same person:
@@ -388,7 +401,7 @@ OUTPUT FORMAT — return this exact JSON structure, nothing else:
           "ENSEMBLE": "string (optional)",
           "ENSEMBLESORT": "string (optional)",
           "PERFORMER": "string or array (optional)",
-          "PERFORMERSORT": "string or array (optional)",
+          "PERFORMERSORT": "string or array (optional) — name only, NEVER include the instrument/voice parenthetical",
           "GROUP": "string (classical movement grouping only)"
         }
       ]
