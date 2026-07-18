@@ -7,6 +7,23 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.10.0] — PERFORMERSORT instrument leakage fix
+
+### Fixed
+- `PERFORMERSORT` was incorrectly including the instrument/voice
+  parenthetical carried over from the corresponding `PERFORMER` entry, e.g.
+  `PERFORMERSORT: "Barber, Chris (trombone, vocals)"` instead of the
+  correct `PERFORMERSORT: "Barber, Chris"`. Sort tags exist purely to
+  control alphabetical filing by surname; the instrument is display-only
+  decoration on `PERFORMER` and has no bearing on how a name should sort.
+  The system prompt now explicitly requires `PERFORMERSORT` to contain the
+  reordered name only, with a worked correct/incorrect example, and asks
+  the model to specifically double-check this before finalising output —
+  it was an easy mistake to make when transforming a whole array of names
+  at once and carrying the parenthetical along by habit.
+
+---
+
 ## [2.9.0] — Warning text precision fix (disc/file misattribution)
 
 ### Fixed
