@@ -68,7 +68,8 @@ export async function runGenerate(options: GenerateOptions): Promise<TaggingFile
     structure,
     folderAsAlbum,
     parentFolderAsArtist,
-    parentFolderName
+    parentFolderName,
+    verbose
   );
 
   if (coverArtUrl && !generated.coverArtUrl) {

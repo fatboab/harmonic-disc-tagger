@@ -115,6 +115,60 @@ export function extractCoverArtUrl(release: DiscogsRelease): string | null {
 }
 
 /**
+ * Strips a Discogs release down to only the fields the tagging prompt
+ * actually uses, before it gets sent to Claude.
+ *
+ * This matters more than it might look: `db.getRelease()` returns the full
+ * raw Discogs API response at runtime — our DiscogsRelease TypeScript
+ * interface only *names* a subset of fields, it doesn't strip anything.
+ * The actual object in memory still carries community stats, video links,
+ * every image variant, resource_url on every single artist credit
+ * (repeated per track for large tracklists), master_url, data_quality,
+ * and more — none of which the system prompt needs to generate tags.
+ * JSON.stringify()-ing the raw object sends all of that on every single
+ * album, every single run, for no benefit.
+ *
+ * Unlike the system prompt (which is identical across every call and
+ * therefore benefits from prompt caching), this release data is different
+ * for every album and can never be cached — so trimming it here is the
+ * more impactful lever for reducing the token cost that's actually billed
+ * fresh on every request.
+ */
+export function pruneReleaseForPrompt(release: DiscogsRelease): Record<string, unknown> {
+  const pruneArtist = (a: DiscogsArtist) => ({
+    name: a.name,
+    anv: a.anv || undefined,
+    role: a.role,
+    join: a.join || undefined,
+    tracks: a.tracks || undefined,
+  });
+
+  return {
+    id: release.id,
+    title: release.title,
+    year: release.year || undefined,
+    genres: release.genres,
+    styles: release.styles,
+    labels: (release.labels ?? []).map((l) => ({ name: l.name, catno: l.catno })),
+    formats: (release.formats ?? []).map((f) => ({
+      name: f.name,
+      qty: f.qty,
+      descriptions: f.descriptions,
+    })),
+    series: (release.series ?? []).map((s) => ({ name: s.name })),
+    artists: (release.artists ?? []).map(pruneArtist),
+    extraartists: (release.extraartists ?? []).map(pruneArtist),
+    tracklist: (release.tracklist ?? []).map((t) => ({
+      position: t.position,
+      title: t.title,
+      duration: t.duration || undefined,
+      type_: t.type_ !== 'track' ? t.type_ : undefined, // omit the common case
+      extraartists: t.extraartists?.map(pruneArtist),
+    })),
+  };
+}
+
+/**
  * Downloads cover art from a Discogs image URL.
  * Discogs image URLs are signed and require no special auth headers beyond
  * a sensible User-Agent.
