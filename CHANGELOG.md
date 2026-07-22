@@ -7,6 +7,50 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.11.0] — Prompt caching and Discogs payload pruning
+
+### Added
+- Prompt caching for the system prompt. The full tagging conventions
+  (~5,500 tokens) are identical on every call, so they're now marked with
+  an explicit `cache_control` breakpoint. Only the first call in a session
+  pays full input-token price for it; subsequent calls within the 5-minute
+  cache window read it back at roughly 10% of the normal cost. An explicit
+  breakpoint on the system block is required here rather than automatic
+  caching — automatic caching would place the breakpoint on the user
+  message instead, which is different (and therefore uncacheable) on
+  every single call, since it embeds that album's specific Discogs data.
+- `pruneReleaseForPrompt()` in `discogs.ts`, which strips the Discogs
+  release object down to only the fields the tagging conventions actually
+  use before it's sent to Claude. The raw API response carries far more
+  than the code's `DiscogsRelease` TypeScript interface implies — since
+  TypeScript types don't remove fields at runtime, the object returned by
+  `db.getRelease()` still includes community stats, every image variant,
+  video links, and a full `resource_url` on every artist credit (repeated
+  per track on long tracklists). The Discogs JSON is also now serialized
+  compactly rather than pretty-printed. This payload is different for
+  every album and can never benefit from caching, so trimming it is the
+  more impactful lever for the part of the input cost that's billed fresh
+  on every single call.
+- `--verbose` now prints a per-album token breakdown (new / cached-read /
+  cached-write / output), so cache effectiveness is directly visible while
+  running a batch.
+
+### Notes
+- Batching multiple albums into a single API call was considered and
+  rejected in favour of the above: it would raise the blast radius of a
+  malformed response (several albums' tags in one JSON object instead of
+  one), push against the `max_tokens` ceiling faster on large multi-disc
+  classical releases, and complicate per-album warning/error reporting.
+  Caching removes the main cost of the current one-call-per-album design
+  without introducing that fragility.
+- Skill-style dynamic instruction loading (as used by Claude Code/Claude.ai
+  to load reference material on demand) was also considered and rejected —
+  nearly every rule in the system prompt applies to every album this tool
+  processes, so there's no meaningful subset to selectively load, and this
+  direct API integration has no harness for that loading protocol anyway.
+
+---
+
 ## [2.10.0] — PERFORMERSORT instrument leakage fix
 
 ### Fixed

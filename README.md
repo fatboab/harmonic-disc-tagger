@@ -399,6 +399,33 @@ If you ever see a warning saying reasoning text had to be stripped from Claude's
 
 ---
 
+## Token usage and cost
+
+Two optimizations keep API costs down when tagging a large collection:
+
+**Prompt caching.** The system prompt (the full set of tagging conventions — around 5,500 tokens) is identical on every single call, regardless of which album is being tagged. It's marked with an explicit cache breakpoint, so only the first call in a session pays full price for it; every subsequent call within the 5-minute cache window reads it back at roughly 10% of the normal input token cost. Run `generate` or `tag` across a batch of albums and only the first one pays full price for the shared instructions — every album after that is markedly cheaper.
+
+**Pruned Discogs payload.** The Discogs API returns far more data per release than the tagger actually needs — community stats, every image variant, video links, and a full `resource_url` on every single artist credit (repeated per track on long tracklists). This gets stripped down to only the fields the tagging conventions actually reference before being sent to Claude, and serialized as compact JSON rather than pretty-printed. Unlike the system prompt, this data is different for every album and can never be cached, so trimming it is the more impactful lever for the part of the bill that's paid fresh on every single request.
+
+Run with `--verbose` to see the token breakdown per album:
+
+```
+       generate: fetching Discogs + calling Claude...
+      tokens: 340 new + 5501 cached (read) + 1847 output
+```
+
+A `cached (write)` figure instead of `cached (read)` means that particular call was the one that populated the cache (the first call in a session, or the first call after the cache has expired) — you'll see this on the first album of a batch run, then `cached (read)` on every album after that within the same session.
+
+### Why not batch multiple albums into one API call?
+
+This was considered, but rejected in favour of caching + payload pruning, for reasons worth knowing about if you're tempted to change it: batching would need each response to carry several albums' worth of tags in one JSON object, meaningfully raising the risk that a single malformed or truncated section brings down the whole batch rather than just one album (something this tool has already needed several rounds of resilience fixes for even at one-album-per-call). It also pushes against the `max_tokens` ceiling faster on large multi-disc classical releases, and complicates the per-album warning/error reporting this tool relies on. Caching already removes the main cost of doing one call per album — the repeated system prompt — without any of that added fragility.
+
+### Why not use Skill-style dynamic instruction loading?
+
+Products like Claude Code and Claude.ai support loading reference material on demand via Skills — reading a relevant `SKILL.md` file only when a task actually needs it, rather than always keeping it in context. That pattern doesn't fit well here: nearly every rule in the system prompt (naming conventions, sort tags, `ARTIST`/`ALBUMARTIST` handling, genre/style rules, warnings discipline) is relevant to *every* album this tool processes — there's no meaningful subset to selectively load, unlike e.g. choosing between a docx skill and a pptx skill for different document types. Prompt caching already gets the same practical outcome — pay once, reuse cheaply — without the added complexity of a dynamic-loading protocol that this direct API integration doesn't have a harness for anyway.
+
+---
+
 ## Notes
 
 - Tags are applied **destructively** — all existing Vorbis comments are cleared and replaced. Use `--dry-run` to preview before committing.

@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { TaggingFile, FolderStructure } from './types';
-import { DiscogsRelease } from './discogs';
+import { DiscogsRelease, pruneReleaseForPrompt } from './discogs';
 
 const client = new Anthropic();
 
@@ -418,7 +418,8 @@ export async function generateTagsWithClaude(
   structure: FolderStructure,
   folderAsAlbum: boolean = false,
   parentFolderAsArtist: boolean = false,
-  parentFolderName: string | null = null
+  parentFolderName: string | null = null,
+  verbose: boolean = false
 ): Promise<TaggingFile> {
   const userMessage = buildUserMessage(
     release,
@@ -430,12 +431,35 @@ export async function generateTagsWithClaude(
     parentFolderName
   );
 
+  // The system prompt is byte-for-byte identical on every call — it never
+  // varies per album. Marking it with an explicit cache breakpoint means
+  // only the first call in a session pays full price for it; every
+  // subsequent call within the cache window (5 minutes by default) reads
+  // it back at roughly 10% of the normal input token cost. This has to be
+  // an EXPLICIT breakpoint on the system block specifically — automatic
+  // caching would place the breakpoint on the user message instead, which
+  // is different (and therefore uncacheable) on every single call.
   const response = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 8192,
-    system: SYSTEM_PROMPT,
+    system: [
+      {
+        type: 'text',
+        text: SYSTEM_PROMPT,
+        cache_control: { type: 'ephemeral' },
+      },
+    ],
     messages: [{ role: 'user', content: userMessage }],
   });
+
+  if (verbose) {
+    const u = response.usage;
+    console.log(
+      `      tokens: ${u.input_tokens} new + ${u.cache_read_input_tokens ?? 0} cached (read)` +
+        (u.cache_creation_input_tokens ? ` + ${u.cache_creation_input_tokens} cached (write)` : '') +
+        ` + ${u.output_tokens} output`
+    );
+  }
 
   const textBlock = response.content.find((b) => b.type === 'text');
   if (!textBlock || textBlock.type !== 'text') {
@@ -532,7 +556,7 @@ COVER ART URL: ${coverArtUrl ?? 'not available'}
 GENERATED AT: ${new Date().toISOString()}
 
 DISCOGS RELEASE JSON:
-${JSON.stringify(release, null, 2)}`;
+${JSON.stringify(pruneReleaseForPrompt(release))}`;
 }
 
 function formatStructure(structure: FolderStructure): string {
