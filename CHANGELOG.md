@@ -7,6 +7,35 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.12.0] — Fix response truncation on large/heavily-credited releases
+
+### Fixed
+- `generate` could fail with a confusing "Claude returned invalid JSON, and
+  fallback extraction also failed" error on releases with unusually large
+  ensembles and/or many tracks (e.g. a big-band jazz session with ~20
+  credited musicians across 15+ tracks). Root cause: `max_tokens` was set
+  to 8,192, far below what such a release actually needs. Every track
+  requires its own complete, independent tag set — there's no way to
+  "inherit" a shared performer list across tracks at the file-tagging
+  level — so a large ensemble's full `PERFORMER`/`PERFORMERSORT` list gets
+  repeated near-verbatim on every single track, and this scales with track
+  count. The response was being cut off mid-generation, mid-JSON-string,
+  well before completion. `claude-sonnet-4-6` actually supports up to
+  128,000 output tokens on the standard Messages API; `max_tokens` is now
+  set to 32,000 — a generous ceiling comfortably clear of what any
+  realistic release should need, without approaching the model's actual
+  limit unnecessarily.
+- Added explicit `stop_reason === 'max_tokens'` detection immediately
+  after the API call, before any JSON parsing is attempted. If a response
+  is ever still truncated despite the higher ceiling, the tool now fails
+  with a specific, immediately actionable error identifying it as a
+  token-limit truncation (including how many output tokens were actually
+  generated and where to raise the limit further), rather than a generic
+  JSON parse failure that requires manually inspecting the raw response
+  to work out what happened.
+
+---
+
 ## [2.11.0] — Prompt caching and Discogs payload pruning
 
 ### Added

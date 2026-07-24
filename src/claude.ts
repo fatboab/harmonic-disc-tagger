@@ -4,6 +4,10 @@ import { DiscogsRelease, pruneReleaseForPrompt } from './discogs';
 
 const client = new Anthropic();
 
+// Output token ceiling for tag generation. See the usage site in
+// generateTagsWithClaude for why this is set well above typical needs.
+const MAX_OUTPUT_TOKENS = 32000;
+
 // ─── System prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `You are an expert music metadata tagger with deep knowledge of classical music, jazz, and popular music cataloguing conventions.
@@ -439,9 +443,20 @@ export async function generateTagsWithClaude(
   // an EXPLICIT breakpoint on the system block specifically — automatic
   // caching would place the breakpoint on the user message instead, which
   // is different (and therefore uncacheable) on every single call.
+  //
+  // MAX_OUTPUT_TOKENS is set well above typical usage deliberately. Every
+  // track needs its own complete, independent tag set embedded in its own
+  // file — there is no way to "inherit" a shared performer list across
+  // tracks at the file-tagging level, so a release with a large ensemble
+  // (e.g. a big-band jazz session with ~20 credited musicians) repeats
+  // that full PERFORMER/PERFORMERSORT list on every single track, and a
+  // release with many tracks multiplies that further. claude-sonnet-4-6
+  // supports up to 128,000 output tokens on the standard Messages API;
+  // 32,000 is a generous ceiling that comfortably covers even unusually
+  // large/heavily-credited releases without approaching that limit.
   const response = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 8192,
+    max_tokens: MAX_OUTPUT_TOKENS,
     system: [
       {
         type: 'text',
@@ -458,6 +473,22 @@ export async function generateTagsWithClaude(
       `      tokens: ${u.input_tokens} new + ${u.cache_read_input_tokens ?? 0} cached (read)` +
         (u.cache_creation_input_tokens ? ` + ${u.cache_creation_input_tokens} cached (write)` : '') +
         ` + ${u.output_tokens} output`
+    );
+  }
+
+  // Detect truncation explicitly rather than letting it surface as a
+  // confusing JSON parse failure. stop_reason === 'max_tokens' means the
+  // response was cut off mid-generation because it hit the token ceiling —
+  // this is a distinct, clearly diagnosable condition, not malformed JSON.
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error(
+      `Claude's response was truncated: it hit the ${MAX_OUTPUT_TOKENS}-token ` +
+        `output limit before finishing (${response.usage.output_tokens} output ` +
+        `tokens generated). This happens on releases with unusually large ` +
+        `ensembles and/or many tracks, where the full PERFORMER/PERFORMERSORT ` +
+        `list has to be repeated in full on every single track. If this keeps ` +
+        `happening, raise MAX_OUTPUT_TOKENS in claude.ts further — ` +
+        `claude-sonnet-4-6 supports up to 128,000 output tokens.`
     );
   }
 
