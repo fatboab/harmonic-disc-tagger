@@ -416,6 +416,14 @@ Run with `--verbose` to see the token breakdown per album:
 
 A `cached (write)` figure instead of `cached (read)` means that particular call was the one that populated the cache (the first call in a session, or the first call after the cache has expired) — you'll see this on the first album of a batch run, then `cached (read)` on every album after that within the same session.
 
+### Output token ceiling
+
+Every track needs its own complete, self-contained tag set — there's no way for one file to "inherit" a shared performer list from another at the file-tagging level. On a release with a large ensemble (a big-band jazz session with 15-20 credited musicians is a good example) and many tracks, the same lengthy `PERFORMER`/`PERFORMERSORT` list ends up repeated near-verbatim on every single track, which can add up to a substantial amount of output for an unusually large or heavily-credited release.
+
+`max_tokens` for tag generation is set to 32,000 — well above what any realistic release should need, but comfortably below `claude-sonnet-4-6`'s actual 128,000-token ceiling on the standard Messages API. If a response is ever cut off before completing, it fails with a clear error identifying it as a token-limit truncation (rather than a confusing "invalid JSON" failure) telling you how many output tokens were generated and that the limit can be raised further in `claude.ts` if needed.
+
+---
+
 ### Why not batch multiple albums into one API call?
 
 This was considered, but rejected in favour of caching + payload pruning, for reasons worth knowing about if you're tempted to change it: batching would need each response to carry several albums' worth of tags in one JSON object, meaningfully raising the risk that a single malformed or truncated section brings down the whole batch rather than just one album (something this tool has already needed several rounds of resilience fixes for even at one-album-per-call). It also pushes against the `max_tokens` ceiling faster on large multi-disc classical releases, and complicates the per-album warning/error reporting this tool relies on. Caching already removes the main cost of doing one call per album — the repeated system prompt — without any of that added fragility.
