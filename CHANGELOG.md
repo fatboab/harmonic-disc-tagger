@@ -7,6 +7,25 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.12.1] — Fix "Streaming is required" error introduced by v2.12.0
+
+### Fixed
+- Raising `MAX_OUTPUT_TOKENS` to 32,000 in v2.12.0 introduced a new failure:
+  `generate` would immediately fail with "Streaming is required for
+  operations that may take longer than 10 minutes" before even reaching
+  the Discogs/Claude calls. This is a client-side safety check built into
+  `@anthropic-ai/sdk` — it refuses to run a plain non-streaming request
+  when it calculates, from `max_tokens`, that the request could exceed 10
+  minutes, and 32,000 crosses that threshold. Switched tag generation from
+  `client.messages.create()` to `client.messages.stream()` with
+  `.finalMessage()`, which waits for the complete response exactly like
+  `.create()` did (no incremental/partial handling was needed or added)
+  but isn't subject to the same duration restriction. `usage`,
+  `stop_reason`, and `content` all behave identically to before, so no
+  other code needed to change.
+
+---
+
 ## [2.12.0] — Fix response truncation on large/heavily-credited releases
 
 ### Fixed
