@@ -402,7 +402,7 @@ If you ever see a warning saying reasoning text had to be stripped from Claude's
 
 ## Resilience on large batch runs
 
-Discogs occasionally returns a transient server error (a 500, or a 429 when rate-limited) — rare, but not vanishingly so across a run of 100+ albums. Discogs API requests are made directly over HTTPS rather than through a third-party client library, with the HTTP status checked before any parsing is attempted, and up to 3 retries with exponential backoff (1s, 2s, 4s) for exactly these transient conditions. If all retries are exhausted, or the failure isn't the transient kind, that one album fails cleanly and the batch moves on to the next — a problem with one album's Discogs data never takes down the rest of the run.
+Discogs occasionally returns a transient server error (a 500, or a 429 when rate-limited), and on a run spanning dozens or hundreds of albums it's also realistic to hit a brief local network or DNS hiccup (e.g. `EAI_AGAIN`, `ECONNRESET`, `ETIMEDOUT`) partway through. Discogs API requests are made directly over HTTPS rather than through a third-party client library, with the HTTP status checked before any parsing is attempted, and up to 4 attempts with exponential backoff (1s, 2s, 4s between attempts — 7 seconds total) for both transient server errors and transient network-level failures. If all retries are exhausted, or the failure isn't a transient kind, that one album fails cleanly and the batch moves on to the next — a problem with one album's Discogs data, or a brief network dropout, never takes down the rest of the run. Albums that failed can simply be re-run later with `generate` (or `tag`) — already-completed albums are skipped automatically.
 
 ---
 

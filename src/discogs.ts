@@ -70,7 +70,7 @@ export interface DiscogsRelease {
 
 const DISCOGS_API_HOST = 'api.discogs.com';
 const USER_AGENT = 'HarmonicDiscTagger/2.13 +https://github.com/fatboab/harmonic-disc-tagger';
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 4;
 const RETRY_BASE_DELAY_MS = 1000;
 
 /**
@@ -131,7 +131,37 @@ export async function fetchDiscogsRelease(releaseId: number): Promise<DiscogsRel
   throw lastError;
 }
 
+// Node.js system error codes that represent transient network conditions
+// worth retrying — DNS hiccups, dropped/reset connections, timeouts. These
+// occur before any HTTP request is even sent (or mid-request), so they
+// never carry an HTTP status code — they need to be recognised separately
+// from the 5xx/429 HTTP-level checks below.
+const RETRYABLE_ERROR_CODES = new Set([
+  'EAI_AGAIN', // DNS lookup temporarily failed
+  'ENOTFOUND', // DNS lookup failed (occasionally transient, not always permanent)
+  'ECONNRESET', // Connection reset by peer
+  'ECONNREFUSED', // Connection refused (can be a brief router/firewall hiccup)
+  'ETIMEDOUT', // Connection timed out
+  'ENETUNREACH', // Network unreachable
+  'EHOSTUNREACH', // Host unreachable
+  'EPIPE', // Broken pipe
+]);
+
 function isRetryableError(err: Error): boolean {
+  // Node system errors (DNS failures, connection resets, etc.) carry a
+  // `.code` property — check that first since it's the most reliable
+  // signal. Our request/response error handlers pass these through
+  // unwrapped via reject(err), so .code survives all the way here.
+  const code = (err as NodeJS.ErrnoException).code;
+  if (code && RETRYABLE_ERROR_CODES.has(code)) return true;
+
+  // Fallback: Node's default error message format includes the code as a
+  // literal substring (e.g. "getaddrinfo EAI_AGAIN api.discogs.com"), so
+  // this catches the same cases even if .code were ever missing.
+  for (const knownCode of RETRYABLE_ERROR_CODES) {
+    if (err.message.includes(knownCode)) return true;
+  }
+
   // 5xx and 429 (rate limit) are transient server-side conditions worth
   // retrying. A JSON parse failure is included too, since it's often the
   // symptom of exactly this kind of transient error returning a

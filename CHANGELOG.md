@@ -7,6 +7,32 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.14.1] — Retry transient network/DNS errors, not just HTTP failures
+
+### Fixed
+- `generate` would fail an album outright on a transient DNS/network error
+  (e.g. `getaddrinfo EAI_AGAIN api.discogs.com`) without retrying, even
+  though the v2.14.0 retry logic was specifically built for transient
+  failures. Root cause: `isRetryableError()` only recognised HTTP-level
+  failures (5xx status codes, 429 rate limiting) via message pattern
+  matching. A DNS resolution failure happens before any HTTP request is
+  even sent — it has no HTTP status code at all, so it never matched and
+  was never retried, going straight to a hard per-album failure instead.
+  Observed as five consecutive album failures during a 120-album batch run
+  once the local network had a brief hiccup.
+- `isRetryableError()` now also checks the error's `.code` property against
+  a set of known transient Node.js network error codes (`EAI_AGAIN`,
+  `ENOTFOUND`, `ECONNRESET`, `ECONNREFUSED`, `ETIMEDOUT`, `ENETUNREACH`,
+  `EHOSTUNREACH`, `EPIPE`), with a message-substring fallback in case
+  `.code` isn't present for some reason. These errors are passed through
+  unwrapped from the request/response error handlers, so `.code` survives
+  intact all the way to the retry check.
+- Increased `MAX_RETRIES` from 3 to 4 (delays: 1s, 2s, 4s between attempts,
+  ~7 seconds total), giving genuinely transient conditions — DNS blips in
+  particular — a little more room to clear before giving up on an album.
+
+---
+
 ## [2.14.0] — Fix whole-process crash on transient Discogs errors
 
 ### Fixed
