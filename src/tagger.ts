@@ -74,12 +74,57 @@ export function applyTagsToFlac(
 
 // ─── Cover art ────────────────────────────────────────────────────────────────
 
+export interface DetectedImageType {
+  extension: string; // e.g. '.jpg', including the leading dot
+  mimeType: string; // e.g. 'image/jpeg'
+}
+
+/**
+ * Detects an image's actual format from its magic bytes, rather than
+ * trusting a URL's apparent extension or a possibly-wrong Content-Type
+ * header. Falls back to JPEG if the format can't be determined — Discogs
+ * virtually always serves JPEG, so this is a safe default.
+ */
+export function detectImageType(buffer: Buffer): DetectedImageType {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return { extension: '.jpg', mimeType: 'image/jpeg' };
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return { extension: '.png', mimeType: 'image/png' };
+  }
+  if (buffer.length >= 4 && buffer.toString('ascii', 0, 4) === 'GIF8') {
+    return { extension: '.gif', mimeType: 'image/gif' };
+  }
+  if (buffer.length >= 2 && buffer[0] === 0x42 && buffer[1] === 0x4d) {
+    return { extension: '.bmp', mimeType: 'image/bmp' };
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.toString('ascii', 0, 4) === 'RIFF' &&
+    buffer.toString('ascii', 8, 12) === 'WEBP'
+  ) {
+    return { extension: '.webp', mimeType: 'image/webp' };
+  }
+  return { extension: '.jpg', mimeType: 'image/jpeg' };
+}
+
 /**
  * Embeds cover art into a FLAC file.
  * Removes any existing PICTURE block first to avoid duplicates.
  */
 export function applyCoverArt(filePath: string, imageBuffer: Buffer): void {
-  const tmpFile = path.join(os.tmpdir(), `tagger-cover-${process.pid}-${Date.now()}.jpg`);
+  const { extension, mimeType } = detectImageType(imageBuffer);
+  const tmpFile = path.join(os.tmpdir(), `tagger-cover-${process.pid}-${Date.now()}${extension}`);
   try {
     fs.writeFileSync(tmpFile, imageBuffer);
 
@@ -91,7 +136,7 @@ export function applyCoverArt(filePath: string, imageBuffer: Buffer): void {
     // Import new cover (type 3 = Front Cover)
     const result = spawnSync(
       'metaflac',
-      [`--import-picture-from=3|image/jpeg|Front Cover||${tmpFile}`, filePath],
+      [`--import-picture-from=3|${mimeType}|Front Cover||${tmpFile}`, filePath],
       { encoding: 'utf-8' }
     );
     if (result.error) throw new Error(`metaflac not found: ${result.error.message}`);
@@ -101,6 +146,23 @@ export function applyCoverArt(filePath: string, imageBuffer: Buffer): void {
   } finally {
     if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
   }
+}
+
+/**
+ * Writes cover art to disk as cover<ext> in the given folder, so media
+ * servers that look for a file on disk (rather than reading embedded FLAC
+ * art) can find it too. The extension is derived from the image's actual
+ * detected format, not assumed.
+ *
+ * The caller is responsible for confirming no cover.* file already exists
+ * in this folder first (e.g. via findLocalCoverArt) — this function does
+ * not re-check, so as not to duplicate that logic in two places.
+ */
+export function writeCoverArtToDisk(folder: string, imageBuffer: Buffer): string {
+  const { extension } = detectImageType(imageBuffer);
+  const destPath = path.join(folder, `cover${extension}`);
+  fs.writeFileSync(destPath, imageBuffer);
+  return destPath;
 }
 
 // ─── Track matching ───────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import {
   checkMetaflac,
   applyTagsToFlac,
   applyCoverArt,
+  writeCoverArtToDisk,
   findAudioFileForTrack,
 } from '../tagger';
 import { downloadCoverArt } from '../discogs';
@@ -63,6 +64,23 @@ export async function runApply(options: ApplyOptions): Promise<ApplyResult> {
             `  Cover art: downloaded from Discogs ` +
               `(${Math.round(coverArt.length / 1024)} KB)`
           );
+        }
+
+        // No local cover.* file existed (that's why we're in this branch —
+        // findLocalCoverArt returned null above), so write the downloaded
+        // image to disk as cover.<ext>. This means media servers that scan
+        // for a cover file on disk (rather than reading embedded FLAC art)
+        // find one too, and it also means subsequent `apply` runs on this
+        // album will find the local file and skip re-downloading entirely.
+        try {
+          const writtenPath = writeCoverArtToDisk(albumFolder, coverArt);
+          if (verbose) {
+            console.log(`  Cover art: saved to disk as ${path.basename(writtenPath)}`);
+          }
+        } catch (writeErr) {
+          console.warn(`  ⚠  Could not save cover art to disk: ${String(writeErr)}`);
+          // Not fatal — embedding into the FLAC files still proceeds below
+          // using the in-memory buffer regardless of whether this succeeded.
         }
       } catch (err) {
         console.warn(`  ⚠  Cover art download failed: ${String(err)}`);

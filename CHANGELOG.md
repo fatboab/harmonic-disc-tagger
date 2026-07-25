@@ -7,6 +7,37 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.13.0] — Save downloaded cover art to disk; fix embedded MIME type
+
+### Added
+- When cover art is downloaded from Discogs (i.e. no local `cover.*` file
+  already existed in the album folder), it's now also written to disk as
+  `cover.<ext>` — for media servers that look for a cover file on disk
+  rather than reading embedded FLAC art (Plex, Jellyfin, Kodi, and others).
+  The extension is derived from the image's actual detected format, not
+  assumed. This also means the next `apply` run on that album finds the
+  local file and skips downloading from Discogs entirely — the first
+  successful download effectively becomes a permanent local cache.
+- `detectImageType()` in `tagger.ts`, which identifies an image's real
+  format (JPEG/PNG/GIF/BMP/WEBP) from its magic bytes rather than trusting
+  a URL's apparent extension or a Content-Type header (some CDNs get this
+  wrong). Used both for the new disk-write feature and for embedding.
+
+### Fixed
+- `applyCoverArt()` previously hardcoded every embedded picture as
+  `image/jpeg` regardless of the image's actual format — harmless for
+  Discogs art (which is virtually always JPEG) but would have mislabeled
+  a local `cover.png` or similar if one were ever used. Now uses the
+  detected MIME type.
+- README corrected: it previously claimed a `cover.jpg` placed inside an
+  individual disc subfolder of a multi-disc release would override the
+  album-level cover for that disc. This was never actually implemented —
+  `findLocalCoverArt()` only ever checks the album folder. The README now
+  states the real behaviour (one shared cover for the whole release)
+  rather than a feature that didn't exist.
+
+---
+
 ## [2.12.1] — Fix "Streaming is required" error introduced by v2.12.0
 
 ### Fixed
