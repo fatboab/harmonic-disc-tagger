@@ -66,39 +66,148 @@ export interface DiscogsRelease {
   formats: Array<{ name: string; qty: string; descriptions: string[] }>;
 }
 
-// ─── Fetch using disconnect ───────────────────────────────────────────────────
+// ─── Fetch (direct HTTPS, not the disconnect npm client) ─────────────────────
 
-// disconnect is a CommonJS module with no @types package; require it
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const Disconnect = require('disconnect');
+const DISCOGS_API_HOST = 'api.discogs.com';
+const USER_AGENT = 'HarmonicDiscTagger/2.13 +https://github.com/fatboab/harmonic-disc-tagger';
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 1000;
 
 /**
- * Fetches a release from the Discogs API using the disconnect client.
+ * Fetches a release from the Discogs API.
  * Requires DISCOGS_USER_TOKEN environment variable for authenticated access,
  * which is needed to receive full-resolution image URLs.
  *
  * Falls back to unauthenticated access if no token is set, but cover art
  * will only be available as 150px thumbnails.
+ *
+ * This deliberately makes the HTTPS request directly rather than using the
+ * `disconnect` npm client. That library has a real bug: on a non-2xx
+ * response with a non-JSON body (e.g. a plain-text "Internal Server Error"
+ * from a transient Discogs 500), it still unconditionally attempts
+ * JSON.parse() on the raw response body inside its own internal handler —
+ * and that parse failure throws SYNCHRONOUSLY inside a Node.js stream
+ * 'end' event callback, several stack frames away from any of our own
+ * code. A JavaScript try/catch (or a Promise's reject path) can only catch
+ * exceptions that occur within the code path it's actually watching — it
+ * cannot intercept an exception thrown inside an unrelated async callback
+ * deep inside a dependency's internals. The result was an uncaught
+ * exception that crashed the entire Node.js process — and with it, the
+ * whole batch run — rather than failing just the one album that hit the
+ * transient error.
+ *
+ * Making the request directly means status codes and JSON parsing are
+ * both fully under our control, so any failure — transient or otherwise —
+ * becomes a normal rejected Promise that bubbles up through generate.ts
+ * and is caught by the per-album try/catch in index.ts, exactly like
+ * every other per-album failure this tool already handles gracefully.
+ * Retries with backoff are applied for the specific failure modes that are
+ * genuinely transient (5xx, 429 rate limiting).
  */
 export async function fetchDiscogsRelease(releaseId: number): Promise<DiscogsRelease> {
   const userToken = process.env['DISCOGS_USER_TOKEN'];
 
-  const clientOptions = userToken ? { userToken } : {};
-  const dis = new Disconnect.Client('MusicTagger/3.0 +https://github.com/your-repo', clientOptions);
-  const db = dis.database();
+  let lastError: Error = new Error(`Discogs API request failed for release ${releaseId}`);
 
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await fetchReleaseOnce(releaseId, userToken);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      if (!isRetryableError(lastError) || attempt === MAX_RETRIES) {
+        throw lastError;
+      }
+
+      const delayMs = RETRY_BASE_DELAY_MS * 2 ** (attempt - 1); // 1s, 2s, 4s
+      console.warn(
+        `  ⚠  Discogs request failed (attempt ${attempt}/${MAX_RETRIES}): ${lastError.message}`
+      );
+      console.warn(`     Retrying in ${delayMs / 1000}s...`);
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastError;
+}
+
+function isRetryableError(err: Error): boolean {
+  // 5xx and 429 (rate limit) are transient server-side conditions worth
+  // retrying. A JSON parse failure is included too, since it's often the
+  // symptom of exactly this kind of transient error returning a
+  // non-standard (non-JSON) body rather than a genuine data problem.
+  return /HTTP (5\d\d|429)\b/.test(err.message) || /invalid JSON/i.test(err.message);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function fetchReleaseOnce(
+  releaseId: number,
+  userToken: string | undefined
+): Promise<DiscogsRelease> {
   return new Promise((resolve, reject) => {
-    db.getRelease(releaseId, (err: Error | null, data: DiscogsRelease) => {
-      if (err) {
-        reject(new Error(`Discogs API error for release ${releaseId}: ${err.message}`));
-        return;
-      }
-      if (!data || !data.id) {
-        reject(new Error(`Discogs returned empty data for release ${releaseId}`));
-        return;
-      }
-      resolve(data);
+    const headers: Record<string, string> = {
+      'User-Agent': USER_AGENT,
+      Accept: 'application/vnd.discogs.v2.discogs+json,application/octet-stream',
+    };
+    if (userToken) {
+      headers['Authorization'] = `Discogs token=${userToken}`;
+    }
+
+    const options: https.RequestOptions = {
+      host: DISCOGS_API_HOST,
+      path: `/releases/${releaseId}`,
+      method: 'GET',
+      headers,
+    };
+
+    const req = https.request(options, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf-8');
+        const status = res.statusCode ?? 0;
+
+        if (status < 200 || status >= 300) {
+          // Try to pull a message out of a JSON error body, but never
+          // assume the body IS JSON — a 500 can just as easily return
+          // plain text, which is exactly what caused the original bug.
+          let message = body.slice(0, 200).trim() || `(empty body)`;
+          try {
+            const parsed = JSON.parse(body);
+            if (parsed && typeof parsed.message === 'string') message = parsed.message;
+          } catch {
+            // Not JSON — the raw text snippet above is used as-is.
+          }
+          reject(
+            new Error(`Discogs API returned HTTP ${status} for release ${releaseId}: ${message}`)
+          );
+          return;
+        }
+
+        try {
+          const data = JSON.parse(body) as DiscogsRelease;
+          if (!data || !data.id) {
+            reject(new Error(`Discogs returned empty/invalid data for release ${releaseId}`));
+            return;
+          }
+          resolve(data);
+        } catch (parseErr) {
+          reject(
+            new Error(
+              `Discogs returned invalid JSON for release ${releaseId} (HTTP ${status}): ` +
+                `${String(parseErr)}. Response started with: "${body.slice(0, 200)}"`
+            )
+          );
+        }
+      });
+      res.on('error', reject);
     });
+
+    req.on('error', reject);
+    req.end();
   });
 }
 

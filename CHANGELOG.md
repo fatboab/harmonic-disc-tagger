@@ -7,6 +7,46 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.14.0] — Fix whole-process crash on transient Discogs errors
+
+### Fixed
+- A transient Discogs API error (a 500 Internal Server Error, or 429 rate
+  limiting) could crash the **entire batch run**, not just the one album
+  being processed at the time — observed mid-run on album 9 of 120, with
+  the remaining 111 albums never attempted. Root cause: the `disconnect`
+  npm client, used for Discogs API requests, has a real bug — on a non-2xx
+  response with a non-JSON body (a plain-text "Internal Server Error" is
+  not JSON), it still unconditionally calls `JSON.parse()` on the raw
+  response body inside its own internal handler. That parse failure throws
+  synchronously inside a Node.js stream `'end'` event callback, several
+  stack frames away from any of this tool's own code. A JavaScript
+  `try/catch` (or a Promise's reject path) can only catch exceptions
+  raised within the code path it's actually watching — it cannot intercept
+  an exception thrown inside an unrelated async callback deep inside a
+  dependency's internals. The result was an uncaught exception that
+  crashed the whole Node.js process, completely bypassing the per-album
+  `try/catch` in `index.ts` that has correctly handled every other class
+  of per-album failure throughout this project's history.
+- `fetchDiscogsRelease()` now makes the Discogs API request directly over
+  HTTPS instead of going through `disconnect`, replicating the exact same
+  endpoint, headers, and authentication `disconnect` used. This puts
+  status-code checking and JSON parsing fully under this tool's own
+  control: the HTTP status is checked before any parsing is attempted, and
+  `JSON.parse()` is wrapped in a `try/catch` regardless of status code, so
+  any malformed or unexpected response body becomes an ordinary rejected
+  Promise — caught by the existing per-album error handling exactly like
+  every other failure mode, rather than escaping it entirely.
+- Added retry with exponential backoff (1s, 2s, 4s; 3 attempts total) for
+  the specific failure modes that are genuinely transient: 5xx responses,
+  429 rate limiting, and JSON parse failures (often a symptom of the same
+  underlying transient condition). A problem with one album's Discogs data
+  no longer risks the rest of a large batch run.
+- Removed the `disconnect` npm dependency entirely — it was only ever used
+  for this one call, which is now a self-contained direct HTTPS request
+  using the same pattern already used for cover art downloads.
+
+---
+
 ## [2.13.0] — Save downloaded cover art to disk; fix embedded MIME type
 
 ### Added
