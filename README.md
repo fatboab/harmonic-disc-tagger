@@ -422,6 +422,8 @@ Every track needs its own complete, self-contained tag set — there's no way fo
 
 `max_tokens` for tag generation is set to 32,000 — well above what any realistic release should need, but comfortably below `claude-sonnet-4-6`'s actual 128,000-token ceiling on the standard Messages API. If a response is ever cut off before completing, it fails with a clear error identifying it as a token-limit truncation (rather than a confusing "invalid JSON" failure) telling you how many output tokens were generated and that the limit can be raised further in `claude.ts` if needed.
 
+Tag generation uses the SDK's streaming API (`client.messages.stream()` with `.finalMessage()`) rather than a plain non-streaming call. This isn't about wanting incremental output — the tool still waits for the complete response before doing anything with it — it's because the Anthropic SDK refuses to run a non-streaming request if it calculates, from `max_tokens`, that the request could take longer than 10 minutes. At `max_tokens: 32000` that threshold is crossed, so streaming is required regardless of how long any individual response actually takes to generate.
+
 ---
 
 ### Why not batch multiple albums into one API call?

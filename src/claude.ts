@@ -454,7 +454,18 @@ export async function generateTagsWithClaude(
   // supports up to 128,000 output tokens on the standard Messages API;
   // 32,000 is a generous ceiling that comfortably covers even unusually
   // large/heavily-credited releases without approaching that limit.
-  const response = await client.messages.create({
+  //
+  // Using .stream() rather than .create(): the SDK refuses to run a plain
+  // non-streaming request if it calculates (from max_tokens) that it could
+  // take longer than 10 minutes, throwing "Streaming is required for
+  // operations that may take longer than 10 minutes" before the request is
+  // even sent. Raising MAX_OUTPUT_TOKENS to 32,000 pushed us over that
+  // threshold. .stream() avoids the restriction entirely (no arbitrary
+  // duration ceiling applies to streaming requests), and .finalMessage()
+  // waits for the stream to finish and returns the fully-assembled Message
+  // in exactly the same shape .create() would have returned — usage,
+  // stop_reason, and content all work identically to how they did before.
+  const stream = client.messages.stream({
     model: 'claude-sonnet-4-6',
     max_tokens: MAX_OUTPUT_TOKENS,
     system: [
@@ -466,6 +477,8 @@ export async function generateTagsWithClaude(
     ],
     messages: [{ role: 'user', content: userMessage }],
   });
+
+  const response = await stream.finalMessage();
 
   if (verbose) {
     const u = response.usage;
