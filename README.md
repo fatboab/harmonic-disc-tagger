@@ -400,6 +400,12 @@ If you ever see a warning saying reasoning text had to be stripped from Claude's
 
 ---
 
+## Resilience on large batch runs
+
+Discogs occasionally returns a transient server error (a 500, or a 429 when rate-limited) — rare, but not vanishingly so across a run of 100+ albums. Discogs API requests are made directly over HTTPS rather than through a third-party client library, with the HTTP status checked before any parsing is attempted, and up to 3 retries with exponential backoff (1s, 2s, 4s) for exactly these transient conditions. If all retries are exhausted, or the failure isn't the transient kind, that one album fails cleanly and the batch moves on to the next — a problem with one album's Discogs data never takes down the rest of the run.
+
+---
+
 ## Token usage and cost
 
 Two optimizations keep API costs down when tagging a large collection:
