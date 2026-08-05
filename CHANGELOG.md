@@ -7,6 +7,31 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.16.1] — Raise output token ceiling to the model's actual maximum
+
+### Fixed
+- `generate` failed with a token-limit truncation error on Tavener's *The
+  Veil of the Temple* (an 8-disc choral work with a large cast) — the
+  second time this class of failure has been hit on a real release, having
+  previously been raised from 8,192 to 32,000 after the same failure on a
+  large-ensemble jazz recording. Rather than pick another "generous" number
+  that might need raising a third time, `MAX_OUTPUT_TOKENS` is now set
+  directly to `claude-sonnet-4-6`'s actual maximum of 128,000 tokens on the
+  standard Messages API. There's no cost or latency downside to a high
+  declared ceiling that goes unused — billing is for tokens actually
+  generated, and a response that finishes early stops early regardless of
+  the ceiling. Tag generation already uses the SDK's streaming API (added
+  in v2.12.1), so raising this further doesn't reintroduce the "Streaming
+  is required for operations that may take longer than 10 minutes"
+  restriction — that only applies to non-streaming requests.
+- The truncation error message no longer suggests "raise MAX_OUTPUT_TOKENS
+  further", since that's no longer valid advice at the model's true
+  ceiling — it now explains that a response still being cut off at 128,000
+  tokens is a genuinely exceptional case, and to check whether a newer or
+  higher-ceiling model is available.
+
+---
+
 ## [2.16.0] — Warning severity hierarchy and end-of-run "needs attention" summary
 
 ### Added

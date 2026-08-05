@@ -4,9 +4,22 @@ import { DiscogsRelease, pruneReleaseForPrompt } from './discogs';
 
 const client = new Anthropic();
 
-// Output token ceiling for tag generation. See the usage site in
-// generateTagsWithClaude for why this is set well above typical needs.
-const MAX_OUTPUT_TOKENS = 32000;
+// Output token ceiling for tag generation, set to claude-sonnet-4-6's actual
+// maximum on the standard Messages API (128,000). This was previously set
+// to a "generous" 32,000 as a middle ground, but that turned out not to be
+// generous enough in practice — it was hit on a large-ensemble jazz opera
+// recording, raised once, and then hit again on an 8-disc choral work
+// (Tavener's The Veil of the Temple). Rather than keep picking another
+// number that might need raising a third time, this now goes straight to
+// the model's real ceiling. There's no cost or latency downside to a high
+// declared ceiling that isn't fully used — billing is for tokens actually
+// generated, and a response that finishes early stops early regardless of
+// what the ceiling was set to. Since tag generation already uses streaming
+// (see the .stream() call below), raising this further doesn't reintroduce
+// the SDK's "Streaming is required for operations that may take longer
+// than 10 minutes" restriction either — that only applies to non-streaming
+// requests.
+const MAX_OUTPUT_TOKENS = 128000;
 
 // ─── System prompt ────────────────────────────────────────────────────────────
 
@@ -559,27 +572,26 @@ export async function generateTagsWithClaude(
   // caching would place the breakpoint on the user message instead, which
   // is different (and therefore uncacheable) on every single call.
   //
-  // MAX_OUTPUT_TOKENS is set well above typical usage deliberately. Every
-  // track needs its own complete, independent tag set embedded in its own
-  // file — there is no way to "inherit" a shared performer list across
-  // tracks at the file-tagging level, so a release with a large ensemble
-  // (e.g. a big-band jazz session with ~20 credited musicians) repeats
-  // that full PERFORMER/PERFORMERSORT list on every single track, and a
-  // release with many tracks multiplies that further. claude-sonnet-4-6
-  // supports up to 128,000 output tokens on the standard Messages API;
-  // 32,000 is a generous ceiling that comfortably covers even unusually
-  // large/heavily-credited releases without approaching that limit.
+  // MAX_OUTPUT_TOKENS is set to claude-sonnet-4-6's actual maximum (see the
+  // constant definition above for why). Every track needs its own complete,
+  // independent tag set embedded in its own file — there is no way to
+  // "inherit" a shared performer list across tracks at the file-tagging
+  // level, so a release with a large ensemble (e.g. a big-band jazz session,
+  // or a large-scale choral/operatic work with a big cast) repeats that
+  // full PERFORMER/PERFORMERSORT list on every single track, and a release
+  // with many tracks multiplies that further. This has already been hit at
+  // lower ceilings (8,192, then 32,000) on real large-ensemble releases.
   //
   // Using .stream() rather than .create(): the SDK refuses to run a plain
   // non-streaming request if it calculates (from max_tokens) that it could
   // take longer than 10 minutes, throwing "Streaming is required for
   // operations that may take longer than 10 minutes" before the request is
-  // even sent. Raising MAX_OUTPUT_TOKENS to 32,000 pushed us over that
-  // threshold. .stream() avoids the restriction entirely (no arbitrary
-  // duration ceiling applies to streaming requests), and .finalMessage()
-  // waits for the stream to finish and returns the fully-assembled Message
-  // in exactly the same shape .create() would have returned — usage,
-  // stop_reason, and content all work identically to how they did before.
+  // even sent — a high MAX_OUTPUT_TOKENS crosses that threshold easily.
+  // .stream() avoids the restriction entirely (no arbitrary duration
+  // ceiling applies to streaming requests), and .finalMessage() waits for
+  // the stream to finish and returns the fully-assembled Message in exactly
+  // the same shape .create() would have returned — usage, stop_reason, and
+  // content all work identically to how they did before.
   const stream = client.messages.stream({
     model: 'claude-sonnet-4-6',
     max_tokens: MAX_OUTPUT_TOKENS,
@@ -612,11 +624,14 @@ export async function generateTagsWithClaude(
     throw new Error(
       `Claude's response was truncated: it hit the ${MAX_OUTPUT_TOKENS}-token ` +
         `output limit before finishing (${response.usage.output_tokens} output ` +
-        `tokens generated). This happens on releases with unusually large ` +
-        `ensembles and/or many tracks, where the full PERFORMER/PERFORMERSORT ` +
-        `list has to be repeated in full on every single track. If this keeps ` +
-        `happening, raise MAX_OUTPUT_TOKENS in claude.ts further — ` +
-        `claude-sonnet-4-6 supports up to 128,000 output tokens.`
+        `tokens generated). This is claude-sonnet-4-6's actual maximum on the ` +
+        `standard Messages API, so it can't simply be raised further — this ` +
+        `release's tagging output is genuinely larger than the model's output ` +
+        `ceiling, most likely an exceptionally large ensemble and/or track ` +
+        `count where the full PERFORMER/PERFORMERSORT list has to be repeated ` +
+        `on every single track. This is a rare, hard limit for this album; ` +
+        `check whether a newer/higher-ceiling model is available and update ` +
+        `the model string in claude.ts if so.`
     );
   }
 
