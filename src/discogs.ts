@@ -197,46 +197,158 @@ function fetchReleaseOnce(
       const chunks: Buffer[] = [];
       res.on('data', (chunk: Buffer) => chunks.push(chunk));
       res.on('end', () => {
-        const body = Buffer.concat(chunks).toString('utf-8');
-        const status = res.statusCode ?? 0;
-
-        if (status < 200 || status >= 300) {
-          // Try to pull a message out of a JSON error body, but never
-          // assume the body IS JSON — a 500 can just as easily return
-          // plain text, which is exactly what caused the original bug.
-          let message = body.slice(0, 200).trim() || `(empty body)`;
+        // Wrapped in an async IIFE so the master-release diagnostic check
+        // below can be awaited, while still guaranteeing resolve/reject is
+        // always called exactly once and nothing here can ever become an
+        // uncaught exception — same crash-proofing principle as the rest
+        // of this file.
+        void (async () => {
           try {
-            const parsed = JSON.parse(body);
-            if (parsed && typeof parsed.message === 'string') message = parsed.message;
-          } catch {
-            // Not JSON — the raw text snippet above is used as-is.
-          }
-          reject(
-            new Error(`Discogs API returned HTTP ${status} for release ${releaseId}: ${message}`)
-          );
-          return;
-        }
+            const body = Buffer.concat(chunks).toString('utf-8');
+            const status = res.statusCode ?? 0;
 
-        try {
-          const data = JSON.parse(body) as DiscogsRelease;
-          if (!data || !data.id) {
-            reject(new Error(`Discogs returned empty/invalid data for release ${releaseId}`));
-            return;
+            if (status < 200 || status >= 300) {
+              // A 404 is the most common symptom of a specific, easy
+              // mistake: pasting a Discogs MASTER release ID (from a
+              // discogs.com/master/... URL) instead of a specific release
+              // ID (from a discogs.com/release/... URL). These are two
+              // entirely separate ID namespaces on Discogs — a master
+              // groups together multiple pressings/versions of an album
+              // and can't be tagged directly, since it has no tracklist,
+              // credits, or catalogue number of its own. Check for this
+              // specific, common mistake before falling back to a generic
+              // "not found" error.
+              if (status === 404) {
+                const master = await checkIfMasterRelease(releaseId, userToken);
+                if (master) {
+                  reject(
+                    new Error(
+                      `_discogsReleaseId ${releaseId} is a Discogs MASTER release ` +
+                        `("${master.title}"), not a specific release. Master releases ` +
+                        `group together multiple pressings/versions of an album and can't ` +
+                        `be tagged directly. Open https://www.discogs.com/master/${releaseId}, ` +
+                        `pick the specific pressing that matches the physical disc, and use ` +
+                        `the numeric ID from that release's URL instead ` +
+                        `(discogs.com/release/<this number>).`
+                    )
+                  );
+                  return;
+                }
+              }
+
+              // Try to pull a message out of a JSON error body, but never
+              // assume the body IS JSON — a 500 can just as easily return
+              // plain text, which is exactly what caused the original bug.
+              let message = body.slice(0, 200).trim() || `(empty body)`;
+              try {
+                const parsed = JSON.parse(body);
+                if (parsed && typeof parsed.message === 'string') message = parsed.message;
+              } catch {
+                // Not JSON — the raw text snippet above is used as-is.
+              }
+              reject(
+                new Error(
+                  `Discogs API returned HTTP ${status} for release ${releaseId}: ${message}`
+                )
+              );
+              return;
+            }
+
+            try {
+              const data = JSON.parse(body) as DiscogsRelease;
+              if (!data || !data.id) {
+                reject(new Error(`Discogs returned empty/invalid data for release ${releaseId}`));
+                return;
+              }
+              resolve(data);
+            } catch (parseErr) {
+              reject(
+                new Error(
+                  `Discogs returned invalid JSON for release ${releaseId} (HTTP ${status}): ` +
+                    `${String(parseErr)}. Response started with: "${body.slice(0, 200)}"`
+                )
+              );
+            }
+          } catch (unexpectedErr) {
+            // Belt and braces: whatever this was, turn it into a normal
+            // rejection rather than letting it become an uncaught
+            // exception in an async IIFE.
+            reject(unexpectedErr instanceof Error ? unexpectedErr : new Error(String(unexpectedErr)));
           }
-          resolve(data);
-        } catch (parseErr) {
-          reject(
-            new Error(
-              `Discogs returned invalid JSON for release ${releaseId} (HTTP ${status}): ` +
-                `${String(parseErr)}. Response started with: "${body.slice(0, 200)}"`
-            )
-          );
-        }
+        })();
       });
       res.on('error', reject);
     });
 
     req.on('error', reject);
+    req.end();
+  });
+}
+
+interface DiscogsMasterInfo {
+  id: number;
+  title: string;
+}
+
+/**
+ * Checks whether a numeric ID corresponds to a Discogs MASTER release
+ * rather than a specific release. Used only as a diagnostic when a release
+ * fetch 404s, to turn a bare "not found" into a specific, actionable
+ * explanation when the likely cause is a master ID having been pasted in
+ * by mistake — master and release IDs are separate, unrelated numbering
+ * sequences on Discogs, so a URL like discogs.com/master/12345-... has
+ * nothing to do with a same-numbered discogs.com/release/12345-....
+ *
+ * Deliberately never throws or rejects — always resolves to either the
+ * master's { id, title } or null (not a master, or the check itself
+ * failed for any reason), so the caller can safely fall back to the
+ * original 404 error message without any extra error handling.
+ */
+function checkIfMasterRelease(
+  id: number,
+  userToken: string | undefined
+): Promise<DiscogsMasterInfo | null> {
+  return new Promise((resolve) => {
+    const headers: Record<string, string> = {
+      'User-Agent': USER_AGENT,
+      Accept: 'application/vnd.discogs.v2.discogs+json,application/octet-stream',
+    };
+    if (userToken) {
+      headers['Authorization'] = `Discogs token=${userToken}`;
+    }
+
+    const options: https.RequestOptions = {
+      host: DISCOGS_API_HOST,
+      path: `/masters/${id}`,
+      method: 'GET',
+      headers,
+    };
+
+    const req = https.request(options, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => {
+        try {
+          const status = res.statusCode ?? 0;
+          if (status < 200 || status >= 300) {
+            resolve(null);
+            return;
+          }
+          const body = Buffer.concat(chunks).toString('utf-8');
+          const data = JSON.parse(body);
+          if (data && typeof data.id === 'number' && typeof data.title === 'string') {
+            resolve({ id: data.id, title: data.title });
+          } else {
+            resolve(null);
+          }
+        } catch {
+          resolve(null);
+        }
+      });
+      res.on('error', () => resolve(null));
+    });
+
+    req.on('error', () => resolve(null));
     req.end();
   });
 }
