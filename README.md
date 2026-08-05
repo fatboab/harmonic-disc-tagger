@@ -68,6 +68,16 @@ https://www.discogs.com/release/6670784-Ella-Fitzgerald-The-Jazz-Sides-Verve-Jaz
                                  this is the release ID
 ```
 
+Make sure the URL says `/release/`, not `/master/`. Discogs also has **Master releases**, which group together every pressing/version of an album (different countries, vinyl vs CD, reissues, etc.) rather than being a specific physical disc:
+
+```
+https://www.discogs.com/master/12345-Some-Artist-Some-Album
+                                ^^^^^
+                                a MASTER ID — do NOT use this
+```
+
+Master and release IDs are separate, unrelated numbering sequences on Discogs, so a master ID can't be used in place of a release ID. If you're on a master page, look for the specific pressing that matches your physical disc (usually under a "Versions" tab) and use the release ID from *that* page instead. If a master ID does end up in `.music-tags.yaml` by mistake, `generate` detects it and fails with a specific error telling you so, rather than a bare "not found".
+
 ### Step 3 — Create the stub
 
 Create a `.music-tags.yaml` file in the **album folder** (the folder that contains the disc subfolder(s), or the audio files directly):

@@ -7,6 +7,36 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.15.0] — Detect Discogs master release IDs pasted by mistake
+
+### Added
+- `_discogsReleaseId` pointing to a Discogs **master release** (from a
+  `discogs.com/master/...` URL) rather than a specific release (from a
+  `discogs.com/release/...` URL) is now detected and reported with a
+  specific, actionable error, rather than a bare "not found". Master and
+  release IDs are separate, unrelated numbering sequences on Discogs — a
+  master groups together every pressing/version of an album and has no
+  tracklist, credits, or catalogue number of its own, so it can't be
+  tagged directly. The error names the master's actual title, links to
+  its version list, and explains that a specific release ID needs to be
+  picked from there instead.
+- The check only runs as a diagnostic when a release fetch returns
+  HTTP 404 — it costs nothing on the normal path where the ID is already
+  correct, and only fires the extra lookup at the moment something has
+  already gone wrong, when the extra clarity is actually useful.
+- Known limitation, documented rather than silently assumed away: if a
+  master ID happens to *coincidentally* also be a valid (but unrelated)
+  release ID — master and release IDs are independent sequences, so this
+  is possible in principle, if unlikely — the release fetch would succeed
+  with the wrong data and this check would never fire, since there'd be no
+  404 to trigger it. This case can't be distinguished from a correctly
+  specified release ID using the ID alone.
+- README updated with a worked example distinguishing `/release/` URLs
+  from `/master/` URLs, and how to find the right release ID from a
+  master's "Versions" tab.
+
+---
+
 ## [2.14.1] — Retry transient network/DNS errors, not just HTTP failures
 
 ### Fixed
