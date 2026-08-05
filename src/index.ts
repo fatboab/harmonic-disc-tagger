@@ -87,6 +87,15 @@ FOLDER STRUCTURE
   An optional cover.jpg (or .jpeg/.png/.gif/.bmp/.webp) in the album folder,
   or in an individual disc folder, is used in preference to Discogs cover art.
 
+WARNINGS
+  Every warning Claude flags starts with [CRITICAL] or [REVIEW]. [REVIEW] is
+  routine — judgement calls, minor corrections, normal classical movement/
+  cycle grouping. [CRITICAL] means the Discogs data and the ripped files
+  don't genuinely correspond — likely the wrong _discogsReleaseId was used.
+  At the end of a run, any hard failures and any [CRITICAL] warnings are
+  listed by folder path in a dedicated section, so you don't have to scroll
+  back through the full log to find out which albums need a second look.
+
 ENVIRONMENT
   ANTHROPIC_API_KEY    Required for the generate and tag commands.
   DISCOGS_USER_TOKEN   Recommended for the generate and tag commands — without
@@ -138,6 +147,23 @@ function parseArgs(argv: string[]): CliArgs {
   return result;
 }
 
+// ─── Per-album result tracking ─────────────────────────────────────────────────
+
+interface AlbumOutcome {
+  warningCount: number;
+  criticalWarnings: string[];
+}
+
+interface FailedAlbum {
+  relPath: string;
+  error: string;
+}
+
+interface FlaggedAlbum {
+  relPath: string;
+  criticalWarnings: string[];
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -178,8 +204,9 @@ async function main(): Promise<void> {
   // ── Process each album ────────────────────────────────────────────────────
   let successCount = 0;
   let skipCount = 0;
-  let errorCount = 0;
   let warningCount = 0;
+  const failedAlbums: FailedAlbum[] = [];
+  const flaggedAlbums: FlaggedAlbum[] = [];
 
   for (let i = 0; i < albumFolders.length; i++) {
     const albumFolder = albumFolders[i];
@@ -189,15 +216,19 @@ async function main(): Promise<void> {
     console.log(`${prefix} ${relPath}`);
 
     try {
-      const warnings = await processAlbum(albumFolder, args, relPath);
-      warningCount += warnings;
+      const outcome = await processAlbum(albumFolder, args, relPath);
+      warningCount += outcome.warningCount;
+      if (outcome.criticalWarnings.length > 0) {
+        flaggedAlbums.push({ relPath, criticalWarnings: outcome.criticalWarnings });
+      }
       successCount++;
     } catch (err) {
-      console.error(`       ❌  ${String(err)}`);
+      const message = String(err);
+      console.error(`       ❌  ${message}`);
       if (args.verbose && err instanceof Error && err.stack) {
         console.error(err.stack);
       }
-      errorCount++;
+      failedAlbums.push({ relPath, error: message });
     }
 
     console.log('');
@@ -205,11 +236,46 @@ async function main(): Promise<void> {
 
   // ── Summary ───────────────────────────────────────────────────────────────
   console.log('─'.repeat(60));
-  console.log(`✅  Done: ${successCount} succeeded, ${skipCount} skipped, ${errorCount} failed`);
+  console.log(`✅  Done: ${successCount} succeeded, ${skipCount} skipped, ${failedAlbums.length} failed`);
   if (warningCount > 0) {
-    console.log(`⚠️   ${warningCount} warning(s) flagged — check the messages above and the .music-tags.yaml files`);
+    console.log(
+      `⚠️   ${warningCount} warning(s) flagged across this run` +
+        (flaggedAlbums.length > 0 ? ` — ${flaggedAlbums.length} album(s) marked [CRITICAL]` : '')
+    );
   }
-  if (errorCount > 0) process.exit(1);
+
+  // ── Needs-attention section: named paths, not just counts ─────────────────
+  // This is the whole point — on a large batch run, nobody wants to scroll
+  // back through thousands of lines to find which specific album(s) need a
+  // second look. Failures and CRITICAL warnings are listed by folder path
+  // right here, with enough detail to act on without scrolling at all.
+  if (failedAlbums.length > 0 || flaggedAlbums.length > 0) {
+    console.log('');
+    console.log('━'.repeat(60));
+    console.log('NEEDS ATTENTION');
+    console.log('━'.repeat(60));
+
+    if (failedAlbums.length > 0) {
+      console.log(`\n❌ FAILED (${failedAlbums.length}):`);
+      for (const failed of failedAlbums) {
+        console.log(`   ${failed.relPath}`);
+        console.log(`      ${failed.error}`);
+      }
+    }
+
+    if (flaggedAlbums.length > 0) {
+      console.log(`\n🔴 CRITICAL (${flaggedAlbums.length}) — review these before trusting the tags:`);
+      for (const flagged of flaggedAlbums) {
+        console.log(`   ${flagged.relPath}`);
+        for (const warning of flagged.criticalWarnings) {
+          console.log(`      ${warning}`);
+        }
+      }
+    }
+    console.log('');
+  }
+
+  if (failedAlbums.length > 0) process.exit(1);
 }
 
 // ─── Per-album processing ─────────────────────────────────────────────────────
@@ -218,7 +284,7 @@ async function processAlbum(
   albumFolder: string,
   args: CliArgs,
   relPath: string
-): Promise<number> {
+): Promise<AlbumOutcome> {
   const { command, force, dryRun, verbose } = args;
 
   // ── generate ──────────────────────────────────────────────────────────────
@@ -227,7 +293,7 @@ async function processAlbum(
 
     if (alreadyDone && !force) {
       console.log(`       ↩  Tags already generated — skipping (--force to redo)`);
-      return 0;
+      return { warningCount: 0, criticalWarnings: [] };
     }
 
     process.stdout.write(`       generate: fetching Discogs + calling Claude...`);
@@ -243,7 +309,7 @@ async function processAlbum(
         `              Album:  ${taggingFile.album?.ALBUM ?? '?'}\n` +
         `              Artist: ${taggingFile.album?.ALBUMARTIST ?? '?'}`
     );
-    const warningCount = printWarnings(taggingFile._warnings);
+    const { total, critical } = printWarnings(taggingFile._warnings);
 
     // For 'tag' command, continue straight to apply
     if (command === 'tag') {
@@ -257,41 +323,54 @@ async function processAlbum(
       reportApplyResult(result, albumFolder, dryRun);
     }
 
-    return warningCount;
+    return { warningCount: total, criticalWarnings: critical };
   }
 
   // ── apply only ────────────────────────────────────────────────────────────
   if (command === 'apply') {
     if (!isTaggingFileComplete(albumFolder)) {
       console.log(`       ⚠  Tags not yet generated — run 'generate' first`);
-      return 0;
+      return { warningCount: 0, criticalWarnings: [] };
     }
 
     const existing = readTaggingFile(albumFolder);
-    const warningCount = printWarnings(existing._warnings);
+    const { total, critical } = printWarnings(existing._warnings);
 
     console.log(`       apply:${dryRun ? ' [DRY RUN]' : ''}`);
     const result = await runApply({ albumFolder, verbose, dryRun });
     reportApplyResult(result, albumFolder, dryRun);
-    return warningCount;
+    return { warningCount: total, criticalWarnings: critical };
   }
 
-  return 0;
+  return { warningCount: 0, criticalWarnings: [] };
 }
 
 /**
- * Prints any data-quality warnings flagged by Claude during tag generation.
- * Returns the number of warnings printed, for tallying in the run summary.
+ * Prints any data-quality warnings flagged by Claude during tag generation,
+ * visually distinguishing [CRITICAL] from [REVIEW]. Returns the total count
+ * and the list of CRITICAL-severity warnings (with their prefix stripped
+ * for cleaner display in the end-of-run summary), so the caller can track
+ * which albums need surfacing in the final "needs attention" section.
  */
-function printWarnings(warnings: string[] | undefined): number {
-  if (!warnings || warnings.length === 0) return 0;
+function printWarnings(warnings: string[] | undefined): { total: number; critical: string[] } {
+  if (!warnings || warnings.length === 0) return { total: 0, critical: [] };
 
   console.log(`       ⚠  ${warnings.length} warning(s) flagged for this album:`);
+
+  const critical: string[] = [];
+
   for (const warning of warnings) {
-    console.log(`          - ${warning}`);
+    if (warning.startsWith('[CRITICAL]')) {
+      const text = warning.replace(/^\[CRITICAL\]\s*/, '');
+      console.log(`          🔴 ${text}`);
+      critical.push(text);
+    } else {
+      const text = warning.replace(/^\[REVIEW\]\s*/, '');
+      console.log(`          - ${text}`);
+    }
   }
 
-  return warnings.length;
+  return { total: warnings.length, critical };
 }
 
 function reportApplyResult(

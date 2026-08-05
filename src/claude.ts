@@ -57,9 +57,9 @@ Example of the exact situation to watch for: Discogs lists position 07 as
   - Still use Discogs data (composer, lyricist, etc.) matched to the
     correct title, not the Discogs position number.
   - Add an entry to "_warnings" describing the discrepancy concisely, e.g.:
-    "Track order mismatch: Discogs lists position 07 as 'Never My Love' and
-    14 as 'Morning Has Broken', but the ripped files have these swapped.
-    Used file order; please verify against the physical disc."
+    "[REVIEW] Track order mismatch: Discogs lists position 07 as 'Never My
+    Love' and 14 as 'Morning Has Broken', but the ripped files have these
+    swapped. Used file order; please verify against the physical disc."
   - Resolve this silently and output only the final JSON — do not narrate
     the analysis in your response.
 
@@ -76,6 +76,51 @@ a warning is itself a data-quality error and defeats the purpose of the
 warning. If you are not fully certain which folder a file is in, look it up
 again in the FOLDER AND FILE STRUCTURE listing rather than stating a disc
 number from memory or inference.
+
+── WARNING SEVERITY — every warning MUST start with [CRITICAL] or [REVIEW] ──
+
+Every string in "_warnings" must begin with one of these two prefixes, so
+the user can immediately tell which albums genuinely need their attention
+across a large batch run, rather than having to read every warning on every
+album to find the ones that matter.
+
+[REVIEW] — the default. Use for: judgement calls on ambiguous credits,
+minor filename/capitalisation corrections, an assumed role, a track-order
+swap that was resolved using the file order, a missing DATE, or — this is
+the important case to get right — Discogs grouping multiple movements,
+scenes, or songs under a single index entry (very common on classical
+releases: a symphony's 4 movements under one Discogs position, an entire
+song cycle under one entry, etc.). This last case is NORMAL and EXPECTED,
+not a sign of a wrong release — it happens on the majority of classical box
+sets and cycles this tool processes. Even when the ratio is large (e.g. one
+Discogs entry expanding to 20 ripped movement files), if you can still
+confidently correlate the Discogs content to the files, this is [REVIEW].
+
+[CRITICAL] — reserve for when the Discogs data and the ripped files don't
+genuinely correspond to each other, suggesting the wrong Discogs release
+was likely used entirely. The tell is not the raw count difference by
+itself (see above — legitimate movement/cycle grouping alone is never
+enough to warrant CRITICAL) but whether you can actually match content:
+titles that don't correspond even loosely, language or subject matter that
+seems unrelated, or having to guess at large stretches of the tracklist
+because nothing lines up. A worked example: a Discogs tracklist listing 28
+total tracks across 2 discs, against 53 ripped audio files, where you can
+only weakly correlate roughly half the Discogs entries to specific files
+and have to state for entry after entry that it "does not clearly match
+any single ripped filename" or "appears to consolidate" several files with
+no confident basis — that pattern indicates the Discogs release probably
+doesn't match the physical media at all, not just a differently-grouped
+tracklist. In a case like this, still do your best to tag every file using
+whatever correlation you can establish, but add ONE clear [CRITICAL]
+warning summarising the mismatch and explicitly suggesting the user
+double-check the _discogsReleaseId against the physical disc — do not bury
+this finding only in several separate [REVIEW]-level per-track notes.
+
+Only add [CRITICAL] when you genuinely believe the release identity itself
+may be wrong. Do not use it for ordinary ambiguity, missing per-track
+credit breakdowns, or legitimate Discogs grouping conventions — reserve it
+for when the user should stop and check whether they used the right
+Discogs release ID.
 
 ═══════════════════════════════════════════════════════════════
 TAGGING CONVENTIONS
@@ -366,7 +411,7 @@ OUTPUT FORMAT — return this exact JSON structure, nothing else:
   "_discogsReleaseId": number,
   "_generated": "ISO 8601 timestamp",
   "_albumFolder": "album folder basename",
-  "_warnings": ["array of strings (optional) — data-quality issues, mismatches, or judgement calls the user should review. Omit entirely or leave empty if none."],
+  "_warnings": ["array of strings (optional) — data-quality issues, mismatches, or judgement calls the user should review. Every entry MUST start with '[CRITICAL] ' or '[REVIEW] '. Omit entirely or leave empty if none."],
   "coverArtUrl": "string or null",
   "album": {
     "ALBUM": "string",
@@ -412,6 +457,76 @@ OUTPUT FORMAT — return this exact JSON structure, nothing else:
     }
   ]
 }`;
+
+// ─── Warning post-processing ───────────────────────────────────────────────────
+//
+// Prompting alone ("re-check the folder structure before writing a warning")
+// has already proven not fully reliable on complex, high-track-count,
+// multi-disc releases — the same class of disc-misattribution error this
+// was meant to prevent recurred on a 3-disc, 58-track release. Rather than
+// rely solely on the model getting this right, this cross-checks any
+// filename a warning names against the folder structure WE already know
+// with certainty, and corrects the disc reference deterministically if it's
+// wrong — no dependence on the model's self-correction at all.
+
+const AUDIO_EXTENSIONS_PATTERN = /\.(flac|mp3|ogg|m4a|aac|wav|aiff)/i;
+const QUOTED_FILENAME_PATTERN = /['"]([^'"]+\.(?:flac|mp3|ogg|m4a|aac|wav|aiff))['"]/i;
+const DISC_MENTION_PATTERN = /\bDis[ck]\s*\d+\b/i;
+
+/**
+ * Applies deterministic post-processing to a generated TaggingFile's
+ * warnings: corrects disc misattribution using the known folder structure,
+ * and ensures every warning carries a [CRITICAL] or [REVIEW] severity
+ * prefix (defaulting to [REVIEW] if the model omitted one), so downstream
+ * reporting always has a consistent, parseable format to work with.
+ */
+function postProcessWarnings(result: TaggingFile, structure: FolderStructure): TaggingFile {
+  if (!result._warnings || result._warnings.length === 0) return result;
+
+  // Build filename -> actual disc folder name lookup. Only worth doing on
+  // genuinely multi-disc releases — nothing to misattribute otherwise.
+  const filenameToDisc = new Map<string, string>();
+  if (structure.discFolders.length > 1) {
+    for (const disc of structure.discFolders) {
+      for (const file of disc.files) {
+        filenameToDisc.set(file.filename, disc.folderName);
+      }
+    }
+  }
+
+  result._warnings = result._warnings.map((warning) => {
+    let corrected = warning;
+
+    // ── Deterministic disc-reference correction ──────────────────────────
+    if (filenameToDisc.size > 0 && AUDIO_EXTENSIONS_PATTERN.test(warning)) {
+      const filenameMatch = warning.match(QUOTED_FILENAME_PATTERN);
+      const discMentionMatch = warning.match(DISC_MENTION_PATTERN);
+
+      if (filenameMatch && discMentionMatch) {
+        const referencedFilename = filenameMatch[1];
+        const actualDisc = filenameToDisc.get(referencedFilename);
+
+        if (actualDisc && !discMentionMatch[0].toLowerCase().includes(actualDisc.toLowerCase())) {
+          // The warning names a real file, and states a disc that isn't
+          // the one that file is actually in. Correct it in place rather
+          // than trust the model's stated disc number.
+          corrected =
+            warning.replace(discMentionMatch[0], actualDisc) +
+            ` [disc reference auto-corrected: '${referencedFilename}' is actually in ${actualDisc}]`;
+        }
+      }
+    }
+
+    // ── Ensure a severity prefix is present ───────────────────────────────
+    if (!/^\[(CRITICAL|REVIEW)\]/.test(corrected)) {
+      corrected = `[REVIEW] ${corrected}`;
+    }
+
+    return corrected;
+  });
+
+  return result;
+}
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
@@ -518,7 +633,7 @@ export async function generateTagsWithClaude(
 
   // First attempt: parse as-is (the expected, well-behaved case)
   try {
-    return JSON.parse(raw) as TaggingFile;
+    return postProcessWarnings(JSON.parse(raw) as TaggingFile, structure);
   } catch (firstErr) {
     // Fallback: the model may have included reasoning/analysis text before
     // or after the JSON object despite instructions not to. Attempt to
@@ -552,13 +667,13 @@ export async function generateTagsWithClaude(
     // we managed to salvage it.
     recovered._warnings = recovered._warnings ?? [];
     recovered._warnings.unshift(
-      'Claude included reasoning/analysis text outside the JSON response; ' +
-        'it was automatically stripped to recover the tags. Review this ' +
-        'album\'s tags carefully, as the underlying data may have needed ' +
-        'unusual judgement calls.'
+      '[REVIEW] Claude included reasoning/analysis text outside the JSON ' +
+        'response; it was automatically stripped to recover the tags. ' +
+        'Review this album\'s tags carefully, as the underlying data may ' +
+        'have needed unusual judgement calls.'
     );
 
-    return recovered;
+    return postProcessWarnings(recovered, structure);
   }
 }
 

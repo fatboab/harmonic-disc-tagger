@@ -385,7 +385,14 @@ Trigger a MinimServer rescan so it picks up the new tags:
 
 ## Data-quality warnings
 
-Sometimes the Discogs data doesn't quite match the physical disc — for example the tracklist order on Discogs disagreeing with the actual ripped files, or a credit that's ambiguous. When Claude spots this kind of issue during `generate`, it's flagged rather than silently guessed or left to cause a hard failure:
+Sometimes the Discogs data doesn't quite match the physical disc — for example the tracklist order on Discogs disagreeing with the actual ripped files, or a credit that's ambiguous. When Claude spots this kind of issue during `generate`, it's flagged rather than silently guessed or left to cause a hard failure.
+
+### Severity: [REVIEW] vs [CRITICAL]
+
+Every warning is one of two severities:
+
+- **`[REVIEW]`** — the routine case. Judgement calls, minor corrections, a track-order swap resolved using file order, or (very common on classical releases) Discogs grouping several movements/scenes/songs under one index entry. This last case is normal and expected, not a sign of anything wrong.
+- **`[CRITICAL]`** — reserved for when the Discogs data and the ripped files don't genuinely correspond to each other at all, which usually means the wrong `_discogsReleaseId` was used. The signal isn't a raw track-count mismatch (that's normal for classical grouping, see above) — it's whether Claude can actually correlate content: titles that don't match even loosely, or having to guess at large stretches of the tracklist because nothing lines up.
 
 ```
 [1/1] Stranger On The Shore
@@ -399,12 +406,36 @@ Sometimes the Discogs data doesn't quite match the physical disc — for example
             physical disc.
 ```
 
-Warnings are:
+A `[CRITICAL]` warning is shown with a 🔴 marker inline, and — critically for a large batch run — surfaced again by folder path in a dedicated section at the very end of the run, so you never have to scroll back through a long log to find out which album needs a second look:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEEDS ATTENTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ FAILED (1):
+   Shostakovich/Lady Macbeth Of Mtsensk
+      Discogs API returned HTTP 404 for release 9999999: ...
+
+🔴 CRITICAL (1) — review these before trusting the tags:
+   Shostakovich/Lady Macbeth Of Mtsensk
+      Significant track order/grouping mismatch: Discogs lists 28 tracks
+      total but the ripped files have 53. Many entries could not be
+      confidently matched. Please verify _discogsReleaseId is correct.
+```
+
+Hard failures (an album that couldn't be tagged at all) and `[CRITICAL]` warnings (an album that *was* tagged, but with data serious enough to need your review) are listed separately, since they mean different things — a failure needs re-running, a `[CRITICAL]` warning needs you to check the tags that were written and quite possibly re-run with a corrected `_discogsReleaseId`.
+
+### Disc/file reference correction
+
+When a warning names a specific disc and filename (e.g. "Disk 3 file '02 - Track.flac'"), the disc reference is cross-checked against the actual known folder structure and corrected automatically if it's wrong — this doesn't rely on Claude getting it right, since the tool already knows with certainty which disc every file is actually in. If you ever see `[disc reference auto-corrected: ...]` appended to a warning, that's this check catching and fixing a misattributed disc number.
+
+### General behaviour
+
 - Printed to the console immediately after `generate` (and again on `apply`, in case you're applying a previously-generated file)
 - Persisted in the `_warnings` field of `.music-tags.yaml`, so they remain visible on review even after the terminal output has scrolled away
-- Counted in the final run summary (`⚠ N warning(s) flagged`) so a batch run across many albums doesn't let one quietly slip past
-
-A warning does **not** stop the album being tagged — `generate` still writes a complete `.music-tags.yaml`, using its best judgement (e.g. trusting the actual audio filenames over a mismatched Discogs position). The warning is there so you know to double-check that specific album, not a failure state.
+- Counted in the final run summary, with `[CRITICAL]`-flagged albums also called out by count and listed by path in the needs-attention section
+- A warning does **not** stop the album being tagged — `generate` still writes a complete `.music-tags.yaml`, using its best judgement. The warning is there so you know to double-check that specific album, not a failure state.
 
 If you ever see a warning saying reasoning text had to be stripped from Claude's response, the tags were still recovered successfully, but it's worth reviewing that album a little more carefully than usual.
 
