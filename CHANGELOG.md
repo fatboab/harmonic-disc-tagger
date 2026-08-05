@@ -7,6 +7,54 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.16.0] — Warning severity hierarchy and end-of-run "needs attention" summary
+
+### Added
+- Every warning now carries a `[CRITICAL]` or `[REVIEW]` severity prefix.
+  `[REVIEW]` covers routine judgement calls, minor corrections, and —
+  explicitly — the normal case of Discogs grouping multiple movements or
+  songs under one index entry (very common on classical releases, and not
+  itself a sign anything is wrong). `[CRITICAL]` is reserved for when the
+  Discogs data and the ripped files don't genuinely correspond — the
+  signal is whether content can actually be correlated, not the raw track
+  count difference, since large count mismatches are routine and expected
+  for classical box sets/song cycles. The system prompt defines both tiers
+  precisely, using a real 28-Discogs-tracks-vs-53-ripped-files case (a
+  wrong `_discogsReleaseId`) as the canonical `[CRITICAL]` example, and
+  explicitly contrasts it against legitimate movement/cycle grouping to
+  prevent over-flagging.
+- End-of-run **"NEEDS ATTENTION"** section, listing hard failures and
+  `[CRITICAL]`-flagged albums by folder path, printed once at the very end
+  of a batch run regardless of how many albums were processed. Previously
+  the summary only gave bare counts (`1 failed`, `609 warning(s) flagged`)
+  with no way to identify which specific album(s) needed a look, short of
+  scrolling back through the entire run's output — impractical on a
+  145-album batch. Failures and `[CRITICAL]` warnings are listed
+  separately, since a failure needs re-running while a `[CRITICAL]`
+  warning means the album *was* tagged but needs review (and quite
+  possibly a corrected `_discogsReleaseId` and re-run).
+- Deterministic disc-reference correction for any warning that names a
+  specific disc and filename. Rather than rely solely on the model
+  correctly self-checking (the same precision instruction added in
+  v2.9.0 had already proven not 100% reliable — the identical class of
+  error recurred on a 3-disc, 58-track release), the filename named in
+  a warning is now cross-checked against the actual known folder
+  structure in code, and the disc reference is corrected automatically
+  if it's wrong. This doesn't depend on the model getting it right at
+  all — the tool already knows with certainty which disc every file is
+  actually in. A corrected warning gets a `[disc reference
+  auto-corrected: ...]` note appended so the correction itself is visible.
+
+### Changed
+- `processAlbum()` and `printWarnings()` now return structured outcomes
+  (warning count + list of CRITICAL warnings) rather than a bare count, so
+  the main run loop can track and report flagged/failed albums by path.
+- README's "Data-quality warnings" section rewritten to document the
+  severity tiers, the end-of-run summary format, and the disc-correction
+  backstop.
+
+---
+
 ## [2.15.0] — Detect Discogs master release IDs pasted by mistake
 
 ### Added
