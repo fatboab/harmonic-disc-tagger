@@ -391,8 +391,25 @@ Sometimes the Discogs data doesn't quite match the physical disc — for example
 
 Every warning is one of two severities:
 
-- **`[REVIEW]`** — the routine case. Judgement calls, minor corrections, a track-order swap resolved using file order, or (very common on classical releases) Discogs grouping several movements/scenes/songs under one index entry. This last case is normal and expected, not a sign of anything wrong.
-- **`[CRITICAL]`** — reserved for when the Discogs data and the ripped files don't genuinely correspond to each other at all, which usually means the wrong `_discogsReleaseId` was used. The signal isn't a raw track-count mismatch (that's normal for classical grouping, see above) — it's whether Claude can actually correlate content: titles that don't match even loosely, or having to guess at large stretches of the tracklist because nothing lines up.
+- **`[REVIEW]`** — the routine case. Judgement calls, minor corrections, a track-order swap resolved using file order, spelling/formatting differences between a filename and the Discogs title, or (very common on classical releases) Discogs grouping several movements/scenes/songs under one index entry. This last case is normal and expected, not a sign of anything wrong.
+- **`[CRITICAL]`** — reserved for two situations: (1) the Discogs data and the ripped files don't genuinely correspond to each other at all, which usually means the wrong `_discogsReleaseId` was used — the signal isn't a raw track-count mismatch (that's normal for classical grouping, see above), it's whether content can actually be correlated; or (2) a genuine *structural* error in Discogs' own data on a release that otherwise is the right one — a track position that's malformed or doesn't fit the disc/track numbering pattern the rest of the release follows, requiring the track mapping to be reconstructed from file evidence rather than just normalising a title.
+
+Case (2) is worth knowing about specifically: it means the release you picked is correct, but Discogs' own database has an error worth going and fixing there. A real example, from the same release:
+
+```
+[CRITICAL] Disc 2, track 05 file is 'Nancy [With The Laughin Face].flac' but
+  Discogs position 2-4 is 'Nancy (With The Laughing Face)' and position 14
+  (malformed — likely intended as 2-5) is 'My Little Brown Book'. The file
+  at Disk 2/05 is 'My Little Brown Book.flac', confirming Discogs position
+  '14' is actually disc 2 track 5. Used file order; Discogs position '14'
+  is a data-quality error in the source.
+
+[REVIEW] Disc 2, track 04 file is 'Nancy [With The Laughin Face].flac';
+  Discogs title is 'Nancy (With The Laughing Face)'. Tagged with Discogs
+  title.
+```
+
+Both warnings found something "wrong" in the Discogs data, but only the first required reconstructing structural information (which track something actually is) from file evidence — a bracket-vs-parenthesis title difference is routine and stays `[REVIEW]` even though it's technically also a discrepancy.
 
 ```
 [1/1] Stranger On The Shore

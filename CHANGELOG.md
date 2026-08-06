@@ -7,6 +7,37 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.17.0] — CRITICAL now also covers structural Discogs data errors
+
+### Changed
+- `[CRITICAL]` was previously reserved only for suspected wrong-release
+  cases (Discogs data and ripped files not corresponding at all). It now
+  also covers a second, distinct situation: a genuine *structural* error
+  in Discogs' own data on a release that otherwise is the right one — a
+  track position that's malformed or doesn't fit the disc/track numbering
+  pattern the rest of the release follows, where the actual track mapping
+  had to be reconstructed from file evidence rather than just normalising
+  a title. Previously this landed as `[REVIEW]`, several notches down from
+  the routine ambiguity it was sitting alongside, and so didn't surface in
+  the end-of-run "needs attention" section even though it represented a
+  genuine error in Discogs' database worth going to correct there.
+- The distinction from routine `[REVIEW]`-level Discogs quirks (spelling
+  fixes, bracket-vs-parenthesis title differences, capitalisation) is
+  precise and deliberately narrow: it's not "did I find any discrepancy in
+  the Discogs data" (common, usually routine) but "did I have to
+  reconstruct structural information — which track something actually is
+  — because Discogs' stated position/structure doesn't make sense on its
+  own." The system prompt now gives a real worked contrast — a malformed
+  track position (`[CRITICAL]`) side by side with a bracket/spelling
+  difference on the very same release (`[REVIEW]`) — so the boundary is
+  concrete rather than left to interpretation.
+- This is a system-prompt-only change; the severity-tier mechanism itself,
+  the deterministic disc-correction backstop, and the end-of-run "needs
+  attention" summary (all from v2.16.0) required no changes to pick this
+  up — any `[CRITICAL]` warning already surfaces automatically.
+
+---
+
 ## [2.16.1] — Raise output token ceiling to the model's actual maximum
 
 ### Fixed
