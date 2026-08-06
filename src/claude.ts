@@ -109,7 +109,10 @@ sets and cycles this tool processes. Even when the ratio is large (e.g. one
 Discogs entry expanding to 20 ripped movement files), if you can still
 confidently correlate the Discogs content to the files, this is [REVIEW].
 
-[CRITICAL] — reserve for when the Discogs data and the ripped files don't
+[CRITICAL] — reserve for two distinct situations, both worth the user's
+attention because something beyond routine ambiguity is going on:
+
+1. Wrong release suspected: the Discogs data and the ripped files don't
 genuinely correspond to each other, suggesting the wrong Discogs release
 was likely used entirely. The tell is not the raw count difference by
 itself (see above — legitimate movement/cycle grouping alone is never
@@ -125,15 +128,56 @@ no confident basis — that pattern indicates the Discogs release probably
 doesn't match the physical media at all, not just a differently-grouped
 tracklist. In a case like this, still do your best to tag every file using
 whatever correlation you can establish, but add ONE clear [CRITICAL]
-warning summarising the mismatch and explicitly suggesting the user
-double-check the _discogsReleaseId against the physical disc — do not bury
-this finding only in several separate [REVIEW]-level per-track notes.
+warning summarising the mismatch and suggesting the user double-check the
+_discogsReleaseId — do not bury this finding only in several separate
+[REVIEW]-level per-track notes, where it's easy to miss across a large
+batch run.
 
-Only add [CRITICAL] when you genuinely believe the release identity itself
-may be wrong. Do not use it for ordinary ambiguity, missing per-track
-credit breakdowns, or legitimate Discogs grouping conventions — reserve it
-for when the user should stop and check whether they used the right
-Discogs release ID.
+2. A genuine structural error in the Discogs data itself, on a release
+that otherwise IS the right one: a track position that's malformed, out of
+sequence, or doesn't fit the disc/track numbering pattern the rest of the
+release follows (e.g. a position labelled bare "14" on a release where
+every other position follows a "1-N"/"2-N" disc-track scheme), such that
+you had to reconstruct the correct track mapping from file evidence rather
+than simply normalise a title. This is worth flagging distinctly because
+it's a genuine data-quality error in Discogs' own database, not something
+internal to this tool — the user may want to go and correct the Discogs
+entry itself, which is a different action from double-checking which
+release they picked.
+
+CRITICAL vs REVIEW — a real worked contrast (both from the same release):
+  [CRITICAL] "Disc 2, track 05 file is 'Nancy [With The Laughin Face].flac'
+    but Discogs position 2-4 is 'Nancy (With The Laughing Face)' and
+    position 14 (malformed — likely intended as 2-5) is 'My Little Brown
+    Book'. The file at Disk 2/05 is 'My Little Brown Book.flac', confirming
+    Discogs position '14' is actually disc 2 track 5. Used file order;
+    Discogs position '14' is a data-quality error in the source."
+      → CRITICAL: the position numbering itself is broken and had to be
+        reconstructed from file evidence — a structural error, not a
+        stylistic one.
+  [REVIEW] "Disc 2, track 04 file is 'Nancy [With The Laughin Face].flac';
+    Discogs title is 'Nancy (With The Laughing Face)'. Tagged with Discogs
+    title." — a bracket-vs-parenthesis and spelling difference between
+    filename and Discogs title. Routine normalisation, correctly REVIEW.
+  [REVIEW] "Discogs position 2-10 credits 'Richard Rogers' as Written By;
+    the correct spelling is 'Richard Rodgers'... Used 'Richard Rodgers' for
+    consistency." — a spelling correction, not a structural problem.
+    Correctly REVIEW even though it's "an error in Discogs' data" in a
+    loose sense — it doesn't require reconstructing anything from file
+    evidence, just a well-known spelling fix.
+
+The distinguishing question for case 2 is not "did I find any error or
+inconsistency in the Discogs data" (that alone is common and usually
+routine) but "did I have to reconstruct structural information — which
+track something actually is — from file evidence, because Discogs' stated
+position/structure doesn't make sense on its own." Spelling fixes, bracket/
+parenthesis differences, capitalisation, and missing/empty fields are
+[REVIEW] even when there are several of them on the same release.
+
+Only add [CRITICAL] for release-identity doubt or genuine structural data
+errors as defined above. Do not use it for ordinary ambiguity, missing
+per-track credit breakdowns, routine spelling/formatting differences, or
+legitimate Discogs grouping conventions.
 
 ═══════════════════════════════════════════════════════════════
 TAGGING CONVENTIONS
