@@ -180,8 +180,9 @@ My Artist/
 Chris Barber/
   The Complete Decca Sessions/
     .music-tags.yaml                          ← stub goes here
-    cover.jpg                                  ← optional, applies to the whole release
+    cover.jpg                                  ← optional, album-level fallback
     The Complete Decca Sessions (Disc 1)/
+      cover.jpg                                ← optional, overrides the fallback for this disc only
       01 - Bobby Shaftoe.flac
     The Complete Decca Sessions (Disc 2)/
       01 - Lord Lord Lord.flac
@@ -189,7 +190,7 @@ Chris Barber/
 
 Disc subfolders must follow the pattern `<Album Name> (Disc N)` or `<Album Name> (Disk N)`.
 
-Cover art is only ever looked for in the album folder itself — there's no per-disc override. A multi-disc release uses one shared `cover.jpg` for every disc.
+Cover art resolution is per disc. Each disc's own folder is checked first for a local `cover.jpg` (or `.jpeg`/`.png`/`.gif`/`.bmp`/`.webp`); if found, it's used for every track on that disc only. If a disc has no cover of its own, the album-level `cover.jpg` is used instead (and if that doesn't exist either, the Discogs `coverArtUrl` is downloaded and shared across every disc without its own art). This is aimed at box sets where each disc has distinct booklet artwork — Disc 1 above gets its own cover, Disc 2 falls back to the shared album-level one.
 
 ---
 
@@ -504,8 +505,8 @@ Products like Claude Code and Claude.ai support loading reference material on de
 ## Notes
 
 - Tags are applied **destructively** — all existing Vorbis comments are cleared and replaced. Use `--dry-run` to preview before committing.
-- Cover art priority: a local `cover.jpg`/`.jpeg`/`.png`/`.gif`/`.bmp`/`.webp` file in the album folder is used if present; otherwise the `coverArtUrl` from Discogs is downloaded. Existing `PICTURE` blocks are removed before import to avoid duplicates. The embedded image's actual format (JPEG/PNG/GIF/BMP/WEBP) is detected from its file contents and tagged with the correct MIME type — not assumed to always be JPEG.
-- When cover art is downloaded from Discogs (i.e. no local `cover.*` file existed), it's also **saved to the album folder as `cover.<ext>`** — the extension matches the image's actual detected format. This is for media servers that look for a cover file on disk rather than reading embedded FLAC art (Plex, Jellyfin, Kodi, and others all do this). It also means the next `apply` run on that album finds the local file and skips the Discogs download entirely.
+- Cover art priority, resolved **per disc**: a local `cover.jpg`/`.jpeg`/`.png`/`.gif`/`.bmp`/`.webp` file in that disc's own folder, if present; otherwise a local cover file in the album folder; otherwise the `coverArtUrl` from Discogs is downloaded and shared across every disc that doesn't have its own art. Existing `PICTURE` blocks are removed before import to avoid duplicates. The embedded image's actual format (JPEG/PNG/GIF/BMP/WEBP) is detected from its file contents and tagged with the correct MIME type — not assumed to always be JPEG.
+- When cover art is downloaded from Discogs (i.e. no local `cover.*` file existed anywhere), it's also **saved to the album folder as `cover.<ext>`** — the extension matches the image's actual detected format. This is for media servers that look for a cover file on disk rather than reading embedded FLAC art (Plex, Jellyfin, Kodi, and others all do this). It also means the next `apply` run on that album finds the local file and skips the Discogs download entirely. The downloaded/cached copy is always written at the album level, never per disc, since Discogs releases only ever provide one cover image for the whole release.
 - Only **FLAC** files are tagged. MP3 and other formats are skipped with a warning.
 - The `generate` step costs a small amount per release (typically a fraction of a cent using `claude-sonnet-4-6`).
 - Without `DISCOGS_USER_TOKEN`, cover art from Discogs is limited to 150×150px thumbnails — a local `cover.jpg` avoids this limitation entirely.

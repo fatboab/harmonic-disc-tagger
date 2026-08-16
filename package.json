@@ -1,6 +1,6 @@
 {
   "name": "music-tagger",
-  "version": "3.0.0",
+  "version": "2.18.0",
   "description": "Automated music tagging tool using Discogs API and Claude AI",
   "main": "dist/index.js",
   "bin": {
