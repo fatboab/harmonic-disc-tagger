@@ -41,28 +41,30 @@ export async function runApply(options: ApplyOptions): Promise<ApplyResult> {
     );
   }
 
-  // ── Resolve cover art ───────────────────────────────────────────────────
-  // Priority: local cover.xxx file > URL from coverArtUrl property
-  let coverArt: Buffer | null = null;
+  // ── Resolve album-level fallback cover art ─────────────────────────────────
+  // This is the shared cover used for any disc that doesn't have its own
+  // local override (see the per-disc resolution inside the loop below).
+  // Priority: local album-level cover.xxx file > URL from coverArtUrl property.
+  let albumFallbackCover: Buffer | null = null;
 
   if (!dryRun) {
     const localCoverPath = findLocalCoverArt(albumFolder);
 
     if (localCoverPath) {
-      coverArt = fs.readFileSync(localCoverPath);
+      albumFallbackCover = fs.readFileSync(localCoverPath);
       if (verbose) {
         console.log(
-          `  Cover art: using local file ${path.basename(localCoverPath)} ` +
-            `(${Math.round(coverArt.length / 1024)} KB)`
+          `  Cover art (album): using local file ${path.basename(localCoverPath)} ` +
+            `(${Math.round(albumFallbackCover.length / 1024)} KB)`
         );
       }
     } else if (data.coverArtUrl) {
       try {
-        coverArt = await downloadCoverArt(data.coverArtUrl);
+        albumFallbackCover = await downloadCoverArt(data.coverArtUrl);
         if (verbose) {
           console.log(
-            `  Cover art: downloaded from Discogs ` +
-              `(${Math.round(coverArt.length / 1024)} KB)`
+            `  Cover art (album): downloaded from Discogs ` +
+              `(${Math.round(albumFallbackCover.length / 1024)} KB)`
           );
         }
 
@@ -73,9 +75,9 @@ export async function runApply(options: ApplyOptions): Promise<ApplyResult> {
         // find one too, and it also means subsequent `apply` runs on this
         // album will find the local file and skip re-downloading entirely.
         try {
-          const writtenPath = writeCoverArtToDisk(albumFolder, coverArt);
+          const writtenPath = writeCoverArtToDisk(albumFolder, albumFallbackCover);
           if (verbose) {
-            console.log(`  Cover art: saved to disk as ${path.basename(writtenPath)}`);
+            console.log(`  Cover art (album): saved to disk as ${path.basename(writtenPath)}`);
           }
         } catch (writeErr) {
           console.warn(`  ⚠  Could not save cover art to disk: ${String(writeErr)}`);
@@ -86,7 +88,7 @@ export async function runApply(options: ApplyOptions): Promise<ApplyResult> {
         console.warn(`  ⚠  Cover art download failed: ${String(err)}`);
       }
     } else {
-      if (verbose) console.log(`  Cover art: none found`);
+      if (verbose) console.log(`  Cover art (album): none found`);
     }
   }
 
@@ -102,6 +104,26 @@ export async function runApply(options: ApplyOptions): Promise<ApplyResult> {
       console.warn(`  ⚠  Disc folder not found: ${discDir} — skipping disc ${disc.discNumber}`);
       errors++;
       continue;
+    }
+
+    // Per-disc cover art override: a disc-specific cover.xxx file found in
+    // this disc's own folder takes priority over the album-level fallback.
+    // Only relevant for genuine per-disc subfolders — when discDir equals
+    // albumFolder (the single-disc-files-directly-in-the-album-folder
+    // layout), this would just re-find the same file already resolved
+    // above, so it's skipped as redundant.
+    let coverArt = albumFallbackCover;
+    if (!dryRun && discDir !== albumFolder) {
+      const discCoverPath = findLocalCoverArt(discDir);
+      if (discCoverPath) {
+        coverArt = fs.readFileSync(discCoverPath);
+        if (verbose) {
+          console.log(
+            `  Cover art (${disc.folder}): using local file ${path.basename(discCoverPath)} ` +
+              `(${Math.round(coverArt.length / 1024)} KB)`
+          );
+        }
+      }
     }
 
     const audioFiles = getAudioFilesInDir(discDir);

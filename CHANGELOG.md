@@ -7,6 +7,33 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.18.0] — Per-disc cover art override
+
+### Added
+- `apply` (and `tag`) now resolve cover art **per disc** rather than once
+  for the whole album. Each disc folder is checked first for its own local
+  `cover.jpg`/`.jpeg`/`.png`/`.gif`/`.bmp`/`.webp`; if found, it's applied
+  only to that disc's tracks. A disc without its own cover falls back to
+  the album-level `cover.*` file, and if neither exists, to the downloaded
+  Discogs `coverArtUrl`, exactly as before. This is aimed at large box sets
+  where individual discs have distinct booklet artwork, rather than one
+  cover for the whole release.
+- The Discogs-downloaded fallback continues to be resolved and cached to
+  disk once, at the album level, never per disc — a release only ever has
+  one Discogs cover image, so there's nothing disc-specific to download.
+
+### Changed
+- README's "Folder structure" and cover art notes updated with a worked
+  multi-disc example showing a disc-level override alongside an
+  album-level fallback, and the resolution order is now stated explicitly
+  as per-disc rather than per-album.
+- Previously (documented as a known limitation since v2.13.0), a
+  `cover.jpg` placed inside an individual disc subfolder was silently
+  ignored — every disc used the single album-level cover regardless. That
+  limitation is now resolved.
+
+---
+
 ## [2.17.0] — CRITICAL now also covers structural Discogs data errors
 
 ### Changed
