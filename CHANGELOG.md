@@ -7,6 +7,29 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.19.0] — GROUP must span disc boundaries for cross-disc works
+
+### Changed
+- The Claude system prompt now explicitly instructs that a `GROUP` value
+  must be identical across every movement of a work, even when that work
+  is split across two or more physical discs (e.g. a 3-act opera ripped
+  as Disc 1 = Act I, Disc 2 = Acts II–III). Previously the system prompt
+  only ever illustrated `GROUP` with single-disc worked examples, leaving
+  the cross-disc case unstated rather than explicitly correct or
+  incorrect.
+- This is a system-prompt-only change — nothing in the data model or
+  `apply`/`tag` code ties `GROUP` to a disc boundary; `GROUP` has always
+  been a plain per-track string with no disc scoping, and `generate`
+  already sends the full multi-disc tracklist and folder structure to
+  Claude in a single call. The gap being closed is a prompt-instruction
+  gap (relying on the model inferring the right behaviour unprompted),
+  not a code limitation.
+- `Music-Tagging-Guide.md` updated with the same decision under
+  "Movements and works — `GROUP`", including a worked example, per this
+  project's convention that tagging decisions live in the guide.
+
+---
+
 ## [2.18.0] — Per-disc cover art override
 
 ### Added
