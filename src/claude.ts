@@ -321,6 +321,20 @@ When uncertain, put all in COMPOSER.
 • TITLE should be ONLY the movement descriptor: "I. Allegro con brio"
 • Movement numbers: Roman numerals with period "I.", "II.", "III."
 • Multiple works on one album → multiple GROUP values — set per track
+• GROUP MUST span disc boundaries when a single work does. Do not treat
+  each disc as its own grouping scope. A work is identified by the Discogs
+  tracklist content and structure (an opera act, a symphonic cycle, a long
+  oratorio), never by which physical disc its movements happen to fall on
+  — box sets routinely split one work across two or more discs purely
+  because of the ~80-minute capacity of a single CD, with no musical
+  break intended at that boundary. Example: a 3-act opera ripped as
+  Disc 1 = Act I, Disc 2 = Acts II–III still gets ONE GROUP value for
+  every movement/scene across all three discs, e.g.
+  GROUP: "Tristan und Isolde" on every track on Disc 1 AND Disc 2 alike
+  — not "Tristan und Isolde (Disc 1)" / "Tristan und Isolde (Disc 2)"
+  and not two separate GROUP values split at the disc boundary. Use the
+  DISC/TRACK STRUCTURE and Discogs tracklist together to identify where a
+  work genuinely starts and ends, independent of disc numbering.
 • Track-level extraartists override album-level for that track's tags
 • Use GROUP, NOT GROUPING
 
