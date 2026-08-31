@@ -497,20 +497,8 @@ Per-track extraartists commonly include: Remix/Remixed By, Vocals, featuring
 artists, per-track soloists, per-track conductors (when a CD has multiple works
 conducted by different people), and per-track Written-By credits on compilations.
 
-Album-level extraartists apply to all tracks UNLESS one of two things is true:
-1. The track has its own conflicting credit for the same role — the track-level
-   credit wins.
-2. The role is musically impossible for that specific track — e.g. a vocal or
-   solo-instrument credit cannot apply to a track that is a known purely
-   instrumental excerpt, or to a different, unrelated work bundled on the same
-   release that has no part for that credit at all.
-An unscoped album-level credit (Discogs' own convention for "applies to every
-track") is a definite assertion, not an ambiguous gap — treat it as applying
-everywhere UNLESS one of the two conditions above is clearly true. Do not
-invent additional reasons to exclude a track from an album-level credit.
-Whenever either exception is used to exclude a track, ALWAYS add a [REVIEW]
-warning naming the track and the specific reason — this overrides what
-Discogs' own data literally states, so it must never happen silently.
+Album-level extraartists apply to all tracks UNLESS a track has its own
+conflicting credit for the same role, in which case the track-level credit wins.
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT — return this exact JSON structure, nothing else:
