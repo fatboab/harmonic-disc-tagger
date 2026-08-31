@@ -14,11 +14,18 @@ export interface DiscogsArtist {
 }
 
 export interface DiscogsTrack {
-  position: string;  // e.g. "A1", "1", "2-3", "1.01"
+  position: string;  // e.g. "A1", "1", "2-3", "1.01" — blank for an Index Track
   title: string;
   duration: string;
   type_: string;     // "track" | "heading" | "index"
   extraartists?: DiscogsArtist[];
+  // Present when type_ is "index": Discogs' structure for a multi-movement
+  // classical work, where the Index Track's own position/duration are
+  // typically blank and the real per-movement position/title/duration live
+  // in this nested array instead. See RSG §12.13.1 on the Discogs site —
+  // this is the standard, documented way to enter a work broken into
+  // movements, not an edge case.
+  sub_tracks?: DiscogsTrack[];
 }
 
 export interface DiscogsImage {
@@ -394,6 +401,23 @@ export function pruneReleaseForPrompt(release: DiscogsRelease): Record<string, u
     tracks: a.tracks || undefined,
   });
 
+  // Recursive: an Index Track's real per-movement position/title/duration
+  // live in its sub_tracks array, not on the Index Track entry itself
+  // (which typically has a blank position and no duration of its own).
+  // Previous versions of this function only kept position/title/duration/
+  // type_/extraartists on each top-level tracklist entry, which silently
+  // discarded sub_tracks entirely — Claude would see an Index Track with
+  // an empty position and nothing else, indistinguishable from a release
+  // that genuinely has no per-movement data. See CHANGELOG [2.19.2].
+  const pruneTrack = (t: DiscogsTrack): Record<string, unknown> => ({
+    position: t.position,
+    title: t.title,
+    duration: t.duration || undefined,
+    type_: t.type_ !== 'track' ? t.type_ : undefined, // omit the common case
+    extraartists: t.extraartists?.map(pruneArtist),
+    sub_tracks: t.sub_tracks?.map(pruneTrack),
+  });
+
   return {
     id: release.id,
     title: release.title,
@@ -409,13 +433,7 @@ export function pruneReleaseForPrompt(release: DiscogsRelease): Record<string, u
     series: (release.series ?? []).map((s) => ({ name: s.name })),
     artists: (release.artists ?? []).map(pruneArtist),
     extraartists: (release.extraartists ?? []).map(pruneArtist),
-    tracklist: (release.tracklist ?? []).map((t) => ({
-      position: t.position,
-      title: t.title,
-      duration: t.duration || undefined,
-      type_: t.type_ !== 'track' ? t.type_ : undefined, // omit the common case
-      extraartists: t.extraartists?.map(pruneArtist),
-    })),
+    tracklist: (release.tracklist ?? []).map(pruneTrack),
   };
 }
 

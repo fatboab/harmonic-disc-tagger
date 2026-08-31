@@ -7,6 +7,56 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.19.2] — Fix: Discogs Index Track sub_tracks were silently dropped
+
+### Fixed
+- `pruneReleaseForPrompt()` (`src/discogs.ts`) discarded a tracklist
+  entry's `sub_tracks` array entirely before building the `generate`
+  prompt. For a classical release using Discogs' standard "Index Track"
+  structure (a multi-movement work whose real per-movement position,
+  title, and duration live in a nested `sub_tracks` array, per Discogs'
+  own RSG §12.13.1), Claude only ever saw the index entry itself — which
+  typically has a blank position and no duration — and reported it as a
+  release with no per-track Discogs data, even when the movement-level
+  data was fully present and correctly entered on Discogs. This produced
+  spurious `CRITICAL`/`REVIEW` warnings claiming "no individual track
+  positions" or "no sub-tracks" on releases that, in fact, had complete
+  per-movement metadata.
+- `pruneReleaseForPrompt()` is now recursive: each tracklist entry's
+  `sub_tracks` (if present) are pruned and preserved the same way as
+  top-level tracks, so Claude receives the real position/title/duration
+  for every movement.
+- Added the `sub_tracks` field to the `DiscogsTrack` type.
+- The Claude system prompt now explicitly explains Index Track /
+  sub_tracks structure: use each sub_track's own position/title/duration
+  rather than inferring movement data from ripped filenames when Discogs
+  already supplies it, and reserve the "no track-level data" warning for
+  index entries that genuinely have no sub_tracks at all.
+- Root-caused and verified against a real release
+  (`_discogsReleaseId: 38299698`, Berlioz/Scottish Chamber Orchestra/
+  Ticciati/Cargill) that surfaced this bug in practice: confirmed via the
+  release's own rendered tracklist that all 9 movements have real
+  Discogs-sourced positions and durations, reconstructed the release's
+  raw tracklist shape as a test fixture, and confirmed the fix recovers
+  all 9 sub_tracks across all 3 works where the previous code recovered
+  zero.
+- The same release also surfaced a separate, related gap: the system
+  prompt's rule for album-level extraartist scope ("applies to all tracks
+  UNLESS a track has its own conflicting credit") didn't authorize
+  excluding a credit from a track where the role is musically impossible
+  (e.g. a vocal credit on a known purely-instrumental excerpt bundled on
+  the same release). An unscoped Discogs credit is an explicit assertion
+  that it applies to every track — not an inference gap — so excluding a
+  track from it is always a deliberate override of stated data, not a
+  resolution of missing data. The prompt now names this as a second,
+  explicit exception (alongside a conflicting track-level credit) and
+  requires it to always be flagged with a `[REVIEW]` warning naming the
+  excluded track and reason, rather than happening silently based on
+  unprompted model judgement. `Music-Tagging-Guide.md` updated with the
+  same decision.
+
+---
+
 ## [2.19.1] — Add CONTRIBUTING.md
 
 ### Added
