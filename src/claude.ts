@@ -527,6 +527,22 @@ track restriction, which applies to every track by default; excluded from
 track 7 ('Scène D'Amour') because it is a purely orchestral excerpt with no
 vocal part."
 
+── The per-artist "tracks" field ────────────────────────────────
+Independently of which array a credit sits in, EVERY extraartist entry (at
+either level) has its own "tracks" field — a string of track positions it
+applies to, e.g. "1, 3, 5 to 7", or blank.
+
+Populated tracks field ("1, 3, 5 to 7"): apply the credit ONLY to those
+listed positions. This is authoritative — do not second-guess it, and do
+not treat a populated field as needing the same kind of judgement call as
+the blank-field case above; Discogs has already told you exactly which
+tracks it applies to.
+
+Blank tracks field: see "Album-level extraartists apply to all tracks..."
+above — this is the same blank-field-means-everywhere rule, restated here
+only to flag that this field exists on every extraartist entry, not just
+album-level ones with no per-track override.
+
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT — return this exact JSON structure, nothing else:
 ═══════════════════════════════════════════════════════════════

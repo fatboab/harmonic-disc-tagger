@@ -74,6 +74,30 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.19.4] — Document the per-artist "tracks" field generally
+
+### Added
+- [2.19.3] fixed album-level credit scope specifically for the case where
+  a blank `tracks` field needs a musically-motivated exception. This adds
+  the more general piece that fix didn't cover: the `tracks` field exists
+  on every `extraartists` entry (release-level or per-track), uses a
+  comma/range syntax (e.g. `"1, 3, 5 to 7"`), and when it's **populated**,
+  it's authoritative — apply the credit only to those listed positions,
+  no judgement call needed. Previously the prompt said nothing about this
+  syntax at all, so a populated `tracks` field had no explicit instruction
+  telling Claude to actually parse and use it.
+- Deliberately does not repeat [2.19.3]'s blank-field reasoning or worked
+  example — it's cross-referenced instead, to avoid two slightly
+  different restatements of the same rule sitting in the same prompt.
+- This version's original scope also included the blank-field case, but
+  it was found to substantially duplicate [2.19.3] (both were written
+  independently against the same release and landed on the same
+  conclusion) — see [2.19.3]'s CHANGELOG entry and the repo history
+  around PRs #23–#26 for how that duplication happened and was resolved.
+  This entry covers only what's left after removing that overlap.
+
+---
+
 ## [2.19.1] — Add CONTRIBUTING.md
 
 ### Added
