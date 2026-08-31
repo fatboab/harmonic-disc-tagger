@@ -33,7 +33,9 @@ The Discogs JSON contains:
 - title, year, genres, styles, labels (with catno), series
 - artists[] — album-level artists
 - extraartists[] — additional credits at album level, each with a "role" field
-- tracklist[] — tracks, each optionally having their own extraartists[]
+- tracklist[] — tracks, each optionally having their own extraartists[];
+  an entry with type_ "index" represents a multi-movement work and carries
+  its real per-movement data in a nested sub_tracks[] array (see below)
 - images[] — cover art
 
 The role field on extraartists is freeform. Common values include:
@@ -313,6 +315,30 @@ When uncertain, put all in COMPOSER.
 • ORCHESTRA: symphony orchestras, philharmonics, full orchestral bodies
 • ENSEMBLE: chamber groups, choirs, period ensembles, jazz bands,
   contemporary groups, vocal ensembles — anything smaller or more specialist
+
+── Discogs Index Tracks and sub_tracks ──────────────────────
+• A tracklist entry with type_ "index" represents a multi-movement work.
+  Its own position/duration are typically blank — the real per-movement
+  data lives in its sub_tracks array, where each sub_track has its own
+  position, title, and duration exactly like a normal track entry.
+• When an index entry has sub_tracks, TREAT EACH SUB_TRACK AS A REAL TRACK:
+  use its position to match against the ripped audio file, its title as
+  the basis for that movement's TITLE, and its duration to sanity-check
+  against the ripped file's length. Do not fall back to inferring the
+  title or movement number from the filename when Discogs already
+  supplies it — the sub_track's title is the source of truth, the
+  filename is only a fallback for matching which physical file it is.
+• The index entry's own title is the WORK title — use it for GROUP on
+  every one of its sub_tracks.
+• Only treat a work as having "no track-level data from Discogs" (i.e.
+  fall back fully to filenames, and flag this with a CRITICAL warning) if
+  its index entry has NO sub_tracks array at all, or an empty one. An
+  index entry with populated sub_tracks is complete, correctly-sourced
+  data — do not warn as if it were missing just because the index entry
+  itself lacks a position.
+• A release can freely mix top-level type_:"track" entries (standalone
+  tracks, no work grouping) with type_:"index" entries (grouped works) in
+  the same tracklist — handle each entry on its own terms.
 
 ── Works and movements (Classical) ─────────────────────────
 • Identify multi-movement works from the tracklist. Tracks belonging to the
