@@ -43,6 +43,37 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.19.3] — Fix: album-level extraartist scope wasn't authorized to exclude musically-impossible tracks, and warning wording was backwards
+
+### Fixed
+- The system prompt's rule for album-level extraartist scope only named
+  one exception ("a track has its own conflicting credit"). It didn't
+  explicitly authorize excluding a credit from a track where the role is
+  musically impossible — e.g. a vocal credit on a known purely
+  instrumental excerpt bundled alongside vocal works on the same release.
+  In practice this was still happening (correctly), but the resulting
+  `[REVIEW]` warning described it backwards: it framed the credit's
+  presence on every *other* track as "assumed" or "inferred rather than
+  confirmed," when an unscoped album-level Discogs credit is in fact an
+  explicit, documented assertion that it applies to every track (see
+  `DiscogsArtist.tracks` in `discogs.ts`: an empty string means "all
+  tracks," not "unspecified"). The exclusion is the actual judgement
+  call, not the inclusion — the warning should say so.
+- System prompt now names the musically-impossible case as a second,
+  explicit exception alongside a conflicting track-level credit, and
+  gives a worked wrong/right example of how the resulting warning should
+  be phrased, so future warnings correctly identify the exclusion (not
+  the routine inclusion) as the thing being decided.
+- Surfaced by the same release as [2.19.2]'s sub_tracks fix
+  (`_discogsReleaseId: 38299698`): Karen Cargill's album-level "Mezzo-
+  soprano Vocals" credit was correctly excluded from the purely
+  orchestral Roméo & Juliette excerpt, but the warning text mischaracterized
+  that as an inference rather than a deliberate, data-justified override.
+- `Music-Tagging-Guide.md` updated with the same decision (handed back to
+  the user separately, as this file isn't part of this repo).
+
+---
+
 ## [2.19.1] — Add CONTRIBUTING.md
 
 ### Added
