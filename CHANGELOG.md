@@ -7,6 +7,24 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.19.1] — Add CONTRIBUTING.md
+
+### Added
+- `CONTRIBUTING.md` records the development workflow that had previously
+  only existed as conversational agreement within individual chat
+  sessions: one branch per task, semver bump per merge, PRs merged only
+  on explicit approval, README/CHANGELOG kept in sync, tagging decisions
+  recorded in `Music-Tagging-Guide.md`, and the practical mechanics of
+  working with this repo's GitHub remote from a Claude session (token
+  handling, no `gh` CLI, sandbox resets between sessions).
+- Documentation/process-only change with no effect on tool behaviour —
+  patch version bump per the versioning rule this file itself documents.
+
+### Changed
+- README gets a short "Contributing" section pointing to the new file.
+
+---
+
 ## [2.19.0] — GROUP must span disc boundaries for cross-disc works
 
 ### Changed

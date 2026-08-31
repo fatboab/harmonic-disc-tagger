@@ -510,3 +510,9 @@ Products like Claude Code and Claude.ai support loading reference material on de
 - Only **FLAC** files are tagged. MP3 and other formats are skipped with a warning.
 - The `generate` step costs a small amount per release (typically a fraction of a cent using `claude-sonnet-4-6`).
 - Without `DISCOGS_USER_TOKEN`, cover art from Discogs is limited to 150×150px thumbnails — a local `cover.jpg` avoids this limitation entirely.
+
+---
+
+## Contributing
+
+Development workflow, branching/versioning conventions, and how changes get made (including from a Claude session) are documented in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
