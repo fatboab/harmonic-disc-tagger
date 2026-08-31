@@ -40,6 +40,20 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
   raw tracklist shape as a test fixture, and confirmed the fix recovers
   all 9 sub_tracks across all 3 works where the previous code recovered
   zero.
+- The same release also surfaced a separate, related gap: the system
+  prompt's rule for album-level extraartist scope ("applies to all tracks
+  UNLESS a track has its own conflicting credit") didn't authorize
+  excluding a credit from a track where the role is musically impossible
+  (e.g. a vocal credit on a known purely-instrumental excerpt bundled on
+  the same release). An unscoped Discogs credit is an explicit assertion
+  that it applies to every track — not an inference gap — so excluding a
+  track from it is always a deliberate override of stated data, not a
+  resolution of missing data. The prompt now names this as a second,
+  explicit exception (alongside a conflicting track-level credit) and
+  requires it to always be flagged with a `[REVIEW]` warning naming the
+  excluded track and reason, rather than happening silently based on
+  unprompted model judgement. `Music-Tagging-Guide.md` updated with the
+  same decision.
 
 ---
 
