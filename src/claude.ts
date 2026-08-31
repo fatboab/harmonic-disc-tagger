@@ -502,15 +502,30 @@ Album-level extraartists apply to all tracks UNLESS one of two things is true:
    credit wins.
 2. The role is musically impossible for that specific track — e.g. a vocal or
    solo-instrument credit cannot apply to a track that is a known purely
-   instrumental excerpt, or to a different, unrelated work bundled on the same
-   release that has no part for that credit at all.
-An unscoped album-level credit (Discogs' own convention for "applies to every
-track") is a definite assertion, not an ambiguous gap — treat it as applying
-everywhere UNLESS one of the two conditions above is clearly true. Do not
-invent additional reasons to exclude a track from an album-level credit.
+   instrumental excerpt bundled alongside vocal works on the same release.
+An unscoped album-level credit is Discogs' own explicit convention for
+"applies to every track" (see the DiscogsArtist.tracks field in discogs.ts:
+an empty string means "all tracks", not "unspecified"). This is a definite
+assertion, not an ambiguous gap — treat it as applying everywhere UNLESS one
+of the two conditions above is clearly true. Do not invent additional
+reasons to exclude a track from an album-level credit.
+
 Whenever either exception is used to exclude a track, ALWAYS add a [REVIEW]
-warning naming the track and the specific reason — this overrides what
-Discogs' own data literally states, so it must never happen silently.
+warning naming the excluded track and the reason — this overrides what
+Discogs' own data literally states, so it must never happen silently. Get
+the framing the right way round: the credit's presence on every OTHER track
+is not an assumption — it's Discogs' own explicit statement. The only
+judgement call is the EXCLUSION, so name that as the deliberate override,
+not the routine inclusion.
+Wrong (backwards — makes the routine, data-backed part sound shaky):
+"Cargill is assumed to perform on tracks 1-6 and 8-9 but not track 7; this
+is standard practice but has been inferred rather than confirmed by
+per-track Discogs data."
+Right (correctly identifies what's actually being decided):
+"Discogs credits Cargill (Mezzo-soprano Vocals) at album level with no
+track restriction, which applies to every track by default; excluded from
+track 7 ('Scène D'Amour') because it is a purely orchestral excerpt with no
+vocal part."
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT — return this exact JSON structure, nothing else:
