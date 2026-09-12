@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { jsonrepair } from 'jsonrepair';
 import { TaggingFile, FolderStructure } from './types';
 import { DiscogsRelease, pruneReleaseForPrompt } from './discogs';
 
@@ -543,6 +544,27 @@ above — this is the same blank-field-means-everywhere rule, restated here
 only to flag that this field exists on every extraartist entry, not just
 album-level ones with no per-track override.
 
+── Escaping quotes inside JSON string values ────────────────────
+Many classical works carry a quoted nickname as part of their catalogue
+title — "Winter Dreams", "Little Russian", "Pathétique", "Eroica", and so
+on. When such a nickname appears inside a JSON string value (most often
+in GROUP or TITLE), the double quotes around it MUST be escaped with a
+backslash, exactly like any other double quote inside a JSON string.
+
+WRONG (breaks JSON parsing — the parser reads the first unescaped quote
+before "Winter" as the end of the string, then fails on what follows):
+  "GROUP": "Symphony No. 1 In G Minor, Op. 13 "Winter Dreams""
+
+RIGHT:
+  "GROUP": "Symphony No. 1 In G Minor, Op. 13 \"Winter Dreams\""
+
+This applies to every field, not just GROUP — any string value containing
+a quoted nickname, a quoted phrase, or a straight double-quote character
+for any other reason needs the same \" escaping. Before finalizing your
+response, mentally re-check every string value that contains a nickname
+or quoted phrase for this specific mistake — it is the single most common
+cause of invalid JSON output on classical releases.
+
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT — return this exact JSON structure, nothing else:
 ═══════════════════════════════════════════════════════════════
@@ -773,6 +795,15 @@ export async function generateTagsWithClaude(
     .replace(/\s*```$/m, '')
     .trim();
 
+  return parseTaggingResponse(raw, structure);
+}
+
+// Parses Claude's raw text response into a TaggingFile, with layered
+// fallback recovery for the ways this can go wrong in practice. Extracted
+// as its own pure function (no API call inside it) specifically so it can
+// be unit-tested directly against a real captured failure, rather than
+// only being exercisable by making a live API call.
+export function parseTaggingResponse(raw: string, structure: FolderStructure): TaggingFile {
   // First attempt: parse as-is (the expected, well-behaved case)
   try {
     return postProcessWarnings(JSON.parse(raw) as TaggingFile, structure);
@@ -793,27 +824,62 @@ export async function generateTagsWithClaude(
     const extracted = raw.slice(firstBrace, lastBrace + 1);
 
     let recovered: TaggingFile;
+    let usedJsonRepair = false;
     try {
       recovered = JSON.parse(extracted) as TaggingFile;
     } catch (secondErr) {
-      throw new Error(
-        `Claude returned invalid JSON, and fallback extraction also failed.\n` +
-          `First parse error: ${String(firstErr)}\n` +
-          `Fallback parse error: ${String(secondErr)}\n\n` +
-          `Raw response:\n${raw}`
-      );
+      // Second fallback: the extracted block itself has a genuine JSON
+      // syntax error, not just surrounding text — most commonly an
+      // unescaped double quote inside a string value (a quoted classical
+      // work nickname like "Winter Dreams" is the recurring culprit; see
+      // the "Escaping quotes inside JSON string values" prompt section).
+      // jsonrepair() handles exactly this class of error (and others:
+      // missing commas, trailing commas, unquoted keys) using a parity
+      // heuristic for embedded quotes, verified against a real failure
+      // of this kind. Only reached when both prior attempts failed, so
+      // it's strictly additive — it can't make a well-formed response
+      // worse.
+      try {
+        recovered = JSON.parse(jsonrepair(extracted)) as TaggingFile;
+        usedJsonRepair = true;
+      } catch (thirdErr) {
+        throw new Error(
+          `Claude returned invalid JSON, and all fallback recovery attempts failed.\n` +
+            `First parse error: ${String(firstErr)}\n` +
+            `Brace-extraction parse error: ${String(secondErr)}\n` +
+            `jsonrepair parse error: ${String(thirdErr)}\n\n` +
+            `Raw response:\n${raw}`
+        );
+      }
     }
 
     // Recovery succeeded, but flag it — the model violated the "JSON only"
     // instruction, so the output deserves an extra close look even though
     // we managed to salvage it.
     recovered._warnings = recovered._warnings ?? [];
-    recovered._warnings.unshift(
-      '[REVIEW] Claude included reasoning/analysis text outside the JSON ' +
-        'response; it was automatically stripped to recover the tags. ' +
-        'Review this album\'s tags carefully, as the underlying data may ' +
-        'have needed unusual judgement calls.'
-    );
+    if (usedJsonRepair) {
+      // This recovery path fixed a genuine syntax error (not just
+      // surrounding text), so it's a stronger warning than the
+      // extra-text case below — the automatic repair is a best-effort
+      // guess about what the model meant, not a guaranteed-correct
+      // reconstruction, even though it succeeded on the case that
+      // motivated adding it.
+      recovered._warnings.unshift(
+        '[CRITICAL] Claude\'s JSON response had a syntax error (most likely ' +
+          'an unescaped quote inside a string value, e.g. a classical work\'s ' +
+          'quoted nickname) and required automatic repair to parse. The repair ' +
+          'succeeded, but treat every field as needing a closer check than ' +
+          'usual — automatic JSON repair is a best-effort reconstruction, not ' +
+          'a guarantee that the intended value was recovered correctly.'
+      );
+    } else {
+      recovered._warnings.unshift(
+        '[REVIEW] Claude included reasoning/analysis text outside the JSON ' +
+          'response; it was automatically stripped to recover the tags. ' +
+          'Review this album\'s tags carefully, as the underlying data may ' +
+          'have needed unusual judgement calls.'
+      );
+    }
 
     return postProcessWarnings(recovered, structure);
   }
