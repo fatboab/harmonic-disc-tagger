@@ -74,6 +74,45 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [2.19.5] — Fix: unescaped quotes in classical work nicknames broke JSON parsing
+
+### Fixed
+- Claude's raw `generate` response would occasionally be syntactically
+  invalid JSON: a classical work's quoted nickname (e.g. Symphony No. 1
+  `"Winter Dreams"`) embedded in a `GROUP` or `TITLE` value with its inner
+  quotes left unescaped, which breaks JSON string syntax at exactly that
+  point. Both existing fallback layers (parse-as-is, then extract-outer-
+  braces) failed identically, since the extracted text has the same
+  genuine syntax error, not just extra surrounding text — the album
+  failed outright with a raw JSON dump and no automatic recovery.
+- Added [`jsonrepair`](https://github.com/josdejong/jsonrepair) as a third
+  fallback layer, tried only after both existing attempts fail. Verified
+  against a real captured failure (Tchaikovsky Symphonies 1–3/Karajan,
+  `_discogsReleaseId: 9895600`): all 13 affected `GROUP` values across 3
+  works recovered correctly, embedded quotes intact.
+- The system prompt now explicitly instructs escaping quotes inside JSON
+  string values, with a worked wrong/right example using this exact
+  failure pattern — the intent is to make this fix mostly unnecessary in
+  practice; the `jsonrepair` layer exists as a safety net for when the
+  instruction still isn't followed.
+- A repair via this new layer is flagged with a `[CRITICAL]` warning
+  distinct from the existing "extra text around the JSON" `[REVIEW]`
+  warning — repairing a genuine syntax error is a more speculative
+  reconstruction than just stripping surrounding prose, and deserves a
+  closer look even though it succeeded.
+- `parseTaggingResponse()` extracted out of `generateTagsWithClaude()`
+  into its own exported, pure function specifically so this fallback
+  chain could be unit-tested directly against a real captured failure
+  rather than only being exercisable via a live API call. Verified with
+  a test fixture built from the actual raw response that surfaced this
+  bug, confirming end-to-end recovery of the correct `_warnings` and all
+  `GROUP` values.
+- README's `[CRITICAL]` severity section gets a third documented case for
+  this, plus a new "Automatic JSON repair" note explaining what the
+  resulting warning means and when it's worth a closer look.
+
+---
+
 ## [2.19.4] — Document the per-artist "tracks" field generally
 
 ### Added
